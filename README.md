@@ -13,7 +13,9 @@ på GitHub Pages.
   - 🎲 **Slumpa** — ett ställe, direkt, klart
   - ⚔️ **Turnering** — två i taget, ni väljer, vinnaren går vidare (bra när gruppen är oense)
   - ⭐ **Favoriter** — spara ställen ni gillar och slumpa bara bland dem
-- **Filter:** avstånd (750 m som standard), kök, öppet nu, "inte nyss besökta" (kommer ihåg de senaste dagarna)
+- **Sökområde:** hela stadsdelen Västra Hamnen som standard (en radie missar
+  Bo01 i ena änden), eller fritt avstånd från din position
+- **Filter:** kök, öppet nu, "inte nyss besökta" (kommer ihåg de senaste dagarna)
 - **Meny & info** per ställe — öppettider, telefon, menylänk, vägbeskrivning
 - Mörkt/ljust tema, fungerar på mobil
 

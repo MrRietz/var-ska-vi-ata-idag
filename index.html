@@ -38,8 +38,16 @@
 
     <div class="filters">
       <div class="field">
-        <label for="radius">Avstånd <output id="radius-out">750 m</output></label>
-        <input id="radius" type="range" min="250" max="3000" step="250" value="750">
+        <label for="area">Sökområde</label>
+        <select id="area">
+          <option value="suburb:3050114">Hela Västra Hamnen</option>
+          <option value="radius">Avstånd från mig</option>
+        </select>
+      </div>
+
+      <div class="field" id="radius-field" hidden>
+        <label for="radius">Avstånd <output id="radius-out">1000 m</output></label>
+        <input id="radius" type="range" min="250" max="3000" step="250" value="1000">
       </div>
 
       <div class="field">

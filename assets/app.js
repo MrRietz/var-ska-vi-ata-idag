@@ -46,6 +46,25 @@ const CHAIN_BLOCKLIST = [
   'pressbyrån', '7-eleven', 'burgerking', 'texas longhorn',
 ];
 
+// Hemsidor vi slagit upp för hand där OSM saknar website-taggen.
+// Nyckel = OSM-id, så en namnändring i kartan inte ger fel länk.
+// Bidra gärna tillbaka: lägg in dem som website= i OSM också.
+const EXTRA_WEBSITES = {
+  'node/5834378328': 'https://thapthim.se/',            // Thap Thim
+  'node/1343176255': 'https://www.laziza.se/',          // Laziza
+  'node/1677337185': 'https://fiskybusiness.nu/',       // Fisky Business Dockan
+  'node/11070918305': 'https://misswang.se/',           // Miss Wang
+  'node/4234162768': 'https://www.curryrepublik.se/',   // Curry Republik
+  'node/12200997100': 'https://www.tamnackthai.se/',    // Tamnack Thai
+};
+
+// Stängda enligt uppslag, men fortfarande kvar i OSM. Vi vill inte
+// skicka någon till en nedlagd krog på lunchen.
+const CLOSED = new Set([
+  'node/772486928',    // Torso Twisted — stängde 2011, lokalen är nu The Torso
+  'node/2718559019',   // Zen Thai — permanent stängd
+]);
+
 function isBlockedChain(tags, name) {
   const hay = `${name} ${tags.brand || ''} ${tags.operator || ''}`.toLowerCase();
   return CHAIN_BLOCKLIST.some((c) => hay.includes(c));
@@ -76,6 +95,8 @@ const el = {
   form: $('#search-form'),
   place: $('#place-input'),
   locate: $('#locate-btn'),
+  area: $('#area'),
+  radiusField: $('#radius-field'),
   radius: $('#radius'),
   radiusOut: $('#radius-out'),
   cuisine: $('#cuisine'),
@@ -222,11 +243,26 @@ function normDay(d) {
 
 /* ---------- Datahämtning ---------- */
 
-function buildQuery(lat, lon, radius) {
+const AMENITIES = '^(restaurant|fast_food)$';
+
+// Stadsdelssökning. En radie kring kontoret missar Bo01 och Universitets-
+// holmen i ändarna av Västra Hamnen, så vi frågar hellre efter hela
+// stadsdelen. Overpass area-id = 3600000000 + relationens id.
+function buildAreaQuery(relationId) {
+  return `[out:json][timeout:30];
+area(${3600000000 + relationId})->.a;
+(
+  node["amenity"~"${AMENITIES}"](area.a);
+  way["amenity"~"${AMENITIES}"](area.a);
+);
+out center tags 300;`;
+}
+
+function buildRadiusQuery(lat, lon, radius) {
   return `[out:json][timeout:25];
 (
-  node["amenity"~"^(restaurant|fast_food)$"](around:${radius},${lat},${lon});
-  way["amenity"~"^(restaurant|fast_food)$"](around:${radius},${lat},${lon});
+  node["amenity"~"${AMENITIES}"](around:${radius},${lat},${lon});
+  way["amenity"~"${AMENITIES}"](around:${radius},${lat},${lon});
 );
 out center tags 200;`;
 }
@@ -259,6 +295,9 @@ function normalize(elements, center) {
     if (!name) continue;                       // namnlösa hjälper ingen
     if (isBlockedChain(t, name)) continue;     // snabbmatskedjor
 
+    const osmId = `${e.type}/${e.id}`;
+    if (CLOSED.has(osmId)) continue;           // nedlagda
+
     const lat = e.lat ?? e.center?.lat;
     const lon = e.lon ?? e.center?.lon;
     if (lat == null || lon == null) continue;
@@ -271,13 +310,13 @@ function normalize(elements, center) {
       .split(';').map((c) => c.trim().toLowerCase()).filter(Boolean);
 
     out.push({
-      id: `${e.type}/${e.id}`,
+      id: osmId,
       name,
       lat, lon,
       amenity: t.amenity,
       cuisines,
       openingHours: t.opening_hours || '',
-      website: t.website || t['contact:website'] || t.url || '',
+      website: t.website || t['contact:website'] || t.url || EXTRA_WEBSITES[osmId] || '',
       menu: t['menu'] || t['website:menu'] || t['contact:menu'] || '',
       phone: t.phone || t['contact:phone'] || '',
       street: [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' '),
@@ -301,7 +340,11 @@ async function loadPlaces() {
   el.list.innerHTML = renderSkeleton();
 
   try {
-    const data = await overpass(buildQuery(state.center.lat, state.center.lon, radius));
+    const mode = el.area.value;
+    const query = mode.startsWith('suburb:')
+      ? buildAreaQuery(+mode.slice(7))
+      : buildRadiusQuery(state.center.lat, state.center.lon, radius);
+    const data = await overpass(query);
     if (token !== state.fetchToken) return;    // ett nyare anrop har hunnit före
 
     state.places = normalize(data.elements || [], state.center);
@@ -712,17 +755,22 @@ function initMap() {
 
 function setCenter(center, { fly = true } = {}) {
   state.center = center;
-  if (fly && state.map) state.map.setView([center.lat, center.lon], 15, { animate: true });
+  if (fly && state.map) {
+    const zoom = el.area.value === 'radius' ? 15 : 14;
+    state.map.setView([center.lat, center.lon], zoom, { animate: true });
+  }
 
   state.meLayer.clearLayers();
   L.circleMarker([center.lat, center.lon], {
     radius: 7, color: '#d1523f', weight: 3, fillColor: '#fff', fillOpacity: 1,
   }).bindPopup(center.label || 'Här är du').addTo(state.meLayer);
 
-  L.circle([center.lat, center.lon], {
-    radius: +el.radius.value, color: '#d1523f', weight: 1,
-    opacity: .35, fillOpacity: .05,
-  }).addTo(state.meLayer);
+  if (el.area.value === 'radius') {
+    L.circle([center.lat, center.lon], {
+      radius: +el.radius.value, color: '#d1523f', weight: 1,
+      opacity: .35, fillOpacity: .05,
+    }).addTo(state.meLayer);
+  }
 }
 
 /* ---------- Init & händelser ---------- */
@@ -747,6 +795,15 @@ function bindEvents() {
   el.radius.addEventListener('change', () => {
     setCenter(state.center, { fly: false });
     loadPlaces();
+  });
+
+  el.area.addEventListener('change', () => {
+    const byRadius = el.area.value === 'radius';
+    el.radiusField.hidden = !byRadius;
+    if (state.center) {
+      setCenter(state.center, { fly: false });
+      loadPlaces();
+    }
   });
 
   el.cuisine.addEventListener('change', applyFilters);
