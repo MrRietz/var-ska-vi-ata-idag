@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Var ska vi äta idag?</title>
+<meta name="description" content="Hitta och slumpa fram dagens lunchställe. Öppen data från OpenStreetMap.">
+<meta name="color-scheme" content="light dark">
+
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">🍽️</span>
+    <div>
+      <h1>Var ska vi äta idag?</h1>
+      <p class="tagline">Slumpa fram dagens lunch — nära kontoret, på riktigt.</p>
+    </div>
+  </div>
+  <button id="theme-toggle" class="icon-btn" type="button" aria-label="Byt färgtema" title="Byt färgtema">◐</button>
+</header>
+
+<main>
+  <!-- Kontrollpanel -->
+  <section class="panel" aria-label="Sök och filter">
+    <form id="search-form" class="search-row" role="search">
+      <label class="visually-hidden" for="place-input">Plats</label>
+      <input id="place-input" type="search" placeholder="Ort, adress eller stadsdel…" autocomplete="off">
+      <button type="submit" class="btn btn-secondary">Sök</button>
+      <button type="button" id="office-btn" class="btn btn-secondary">🏢 Kontoret</button>
+      <button type="button" id="locate-btn" class="btn btn-secondary">📍 Min position</button>
+    </form>
+
+    <div class="filters">
+      <div class="field">
+        <label for="radius">Avstånd <output id="radius-out">1000 m</output></label>
+        <input id="radius" type="range" min="250" max="3000" step="250" value="1000">
+      </div>
+
+      <div class="field">
+        <label for="cuisine">Kök</label>
+        <select id="cuisine">
+          <option value="">Alla kök</option>
+        </select>
+      </div>
+
+      <div class="field field-check">
+        <label><input type="checkbox" id="open-now"> Öppet nu</label>
+        <label><input type="checkbox" id="only-favs"> Endast favoriter ★</label>
+        <label><input type="checkbox" id="no-repeat"> Inte nyss besökta</label>
+      </div>
+    </div>
+
+    <div class="decide-row">
+      <button id="roll-btn" class="btn btn-primary btn-roll" type="button">
+        🎲 Slumpa åt mig
+      </button>
+      <button id="tourney-btn" class="btn" type="button" title="Två i taget — vinnaren går vidare">
+        ⚔️ Turnering
+      </button>
+      <button id="vote-btn" class="btn" type="button" title="Dela en länk och rösta ihop">
+        🗳️ Rösta ihop
+      </button>
+    </div>
+  </section>
+
+  <!-- Vinnaren -->
+  <section id="winner" class="winner" hidden aria-live="polite"></section>
+
+  <div class="layout">
+    <!-- Lista -->
+    <section class="results" aria-label="Restauranger">
+      <div class="results-head">
+        <h2 id="results-count">Hittar ställen…</h2>
+        <label class="sort">
+          <span class="visually-hidden">Sortera</span>
+          <select id="sort">
+            <option value="distance">Närmast</option>
+            <option value="name">Namn A–Ö</option>
+          </select>
+        </label>
+      </div>
+      <ul id="list" class="card-list"></ul>
+      <p id="empty" class="empty" hidden></p>
+    </section>
+
+    <!-- Karta -->
+    <section class="map-wrap" aria-label="Karta">
+      <div id="map"></div>
+    </section>
+  </div>
+</main>
+
+<!-- Detaljvy / turnering / röstning -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Detaljer">
+    <button id="modal-close" class="modal-close" type="button" aria-label="Stäng">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<output id="status" class="status" aria-live="polite" hidden></output>
+
+<footer class="footer">
+  <p>
+    Data från <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-bidragsgivare
+    via <a href="https://overpass-api.de/" target="_blank" rel="noopener">Overpass API</a>.
+    Karta med <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>.
+  </p>
+  <p class="muted">Öppettider och uppgifter kan vara inaktuella — ring gärna innan ni går.</p>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
