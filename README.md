@@ -7,12 +7,13 @@ på GitHub Pages.
 
 ## Vad den gör
 
-- **Hittar riktiga lunchställen** runt dig via OpenStreetMap (restauranger och snabbmat — inga kaféer)
+- **Hittar riktiga lunchställen** runt dig via OpenStreetMap — inga kaféer, och
+  snabbmatskedjorna (McDonald's, Subway, Max m.fl.) är bortfiltrerade
 - **Tre sätt att bestämma:**
   - 🎲 **Slumpa** — ett ställe, direkt, klart
   - ⚔️ **Turnering** — två i taget, ni väljer, vinnaren går vidare (bra när gruppen är oense)
   - ⭐ **Favoriter** — spara ställen ni gillar och slumpa bara bland dem
-- **Filter:** avstånd, kök, öppet nu, "inte nyss besökta" (kommer ihåg de senaste dagarna)
+- **Filter:** avstånd (750 m som standard), kök, öppet nu, "inte nyss besökta" (kommer ihåg de senaste dagarna)
 - **Meny & info** per ställe — öppettider, telefon, menylänk, vägbeskrivning
 - Mörkt/ljust tema, fungerar på mobil
 

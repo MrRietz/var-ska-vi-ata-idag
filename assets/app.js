@@ -36,6 +36,21 @@ const CUISINE_LABELS = {
   buffet: 'Buffé',
 };
 
+// Snabbmatskedjor vi inte vill ha bland lunchförslagen. Matchas mot namn
+// och OSM:s brand-tagg, skiftlägesokänsligt. amenity=fast_food duger inte
+// som filter — där ligger även falafel- och pokéställen vi gärna behåller.
+const CHAIN_BLOCKLIST = [
+  'mcdonald', 'burger king', 'subway', 'max hamburgare', 'max burgers',
+  'kfc', 'taco bell', 'domino', 'pizza hut', 'sibylla', 'frasses',
+  'espresso house', 'wayne', 'starbucks', "o'learys", 'onkel kå',
+  'pressbyrån', '7-eleven', 'burgerking', 'texas longhorn',
+];
+
+function isBlockedChain(tags, name) {
+  const hay = `${name} ${tags.brand || ''} ${tags.operator || ''}`.toLowerCase();
+  return CHAIN_BLOCKLIST.some((c) => hay.includes(c));
+}
+
 /* ---------- Tillstånd ---------- */
 
 const state = {
@@ -242,6 +257,7 @@ function normalize(elements, center) {
     const t = e.tags || {};
     const name = t.name || t['name:sv'];
     if (!name) continue;                       // namnlösa hjälper ingen
+    if (isBlockedChain(t, name)) continue;     // snabbmatskedjor
 
     const lat = e.lat ?? e.center?.lat;
     const lon = e.lon ?? e.center?.lon;
