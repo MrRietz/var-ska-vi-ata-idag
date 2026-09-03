@@ -737,13 +737,54 @@ function roll() {
 }
 
 /* Turnering: två i taget, användaren väljer, vinnaren går vidare. */
-function startTournament() {
-  const pool = state.visible.slice(0, 16);
-  if (pool.length < 2) { status('Behöver minst två ställen för en turnering.'); return; }
+const TOURNAMENT_SIZE = 8;
 
-  const shuffled = pool.slice().sort(() => Math.random() - 0.5);
-  const size = Math.pow(2, Math.floor(Math.log2(shuffled.length)));
-  state.tournament = { queue: shuffled.slice(0, size), next: [], round: 1 };
+// Fisher-Yates. `sort(() => Math.random() - 0.5)` ger en skev blandning
+// eftersom jämförelsefunktionen inte är konsekvent.
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Viktat urval: högt betyg oftare, men inget är uteslutet. Obetygsatta
+// får medelvikt — de är okända, inte dåliga.
+function pickContenders(places, count) {
+  const weightOf = (p) => {
+    const r = p.rating?.r ?? 3.9;
+    return Math.max(0.2, r - 2.5) ** 2;      // 4,5 väger ~4x mot 3,0
+  };
+  const remaining = places.slice();
+  const picked = [];
+
+  while (picked.length < count && remaining.length) {
+    const total = remaining.reduce((sum, p) => sum + weightOf(p), 0);
+    let roll = Math.random() * total;
+    let idx = remaining.length - 1;
+    for (let i = 0; i < remaining.length; i++) {
+      roll -= weightOf(remaining[i]);
+      if (roll <= 0) { idx = i; break; }
+    }
+    picked.push(remaining.splice(idx, 1)[0]);
+  }
+  return picked;
+}
+
+function startTournament() {
+  if (state.visible.length < 2) {
+    status('Behöver minst två ställen för en turnering.');
+    return;
+  }
+
+  // Störst tvåpotens som ryms, så alla möts i en jämn stege.
+  const wanted = Math.min(TOURNAMENT_SIZE, state.visible.length);
+  const size = Math.pow(2, Math.floor(Math.log2(wanted)));
+  const contenders = shuffle(pickContenders(state.visible, size));
+
+  state.tournament = { queue: contenders, next: [], round: 1 };
   nextDuel();
 }
 
@@ -768,9 +809,12 @@ function nextDuel() {
   const a = t.queue.shift();
   const b = t.queue.shift();
   const left = t.queue.length + t.next.length + 2;
+  const label = left === 2 ? 'Final'
+    : left <= 4 ? 'Semifinal'
+    : `Omgång ${t.round}`;
 
   openModal(`
-    <p class="eyebrow">Turnering · ${left} kvar</p>
+    <p class="eyebrow">${escapeHtml(label)} · ${left} kvar</p>
     <h2 class="modal-title">Vilken vinner?</h2>
     <div class="duel">
       ${duelCard(a, 'a')}
@@ -799,6 +843,7 @@ function duelCard(p, side) {
   ].filter(Boolean).join(' · ');
   return `
     <button class="duel-card" data-duel="${side}" type="button">
+      ${p.rating ? ratingBadge(p.rating) : ''}
       <h3>${escapeHtml(p.name)}</h3>
       <p class="sub">${escapeHtml(meta)}</p>
     </button>`;

@@ -11,7 +11,8 @@ på GitHub Pages.
   snabbmatskedjorna (McDonald's, Subway, Max m.fl.) är bortfiltrerade
 - **Tre sätt att bestämma:**
   - 🎲 **Slumpa** — ett ställe, direkt, klart
-  - ⚔️ **Turnering** — två i taget, ni väljer, vinnaren går vidare (bra när gruppen är oense)
+  - ⚔️ **Turnering** — 8 ställen, 7 dueller, vinnaren går vidare (bra när gruppen är oense).
+    Urvalet viktas mot högt betyg, men inget är uteslutet
   - ⭐ **Favoriter** — spara ställen ni gillar och slumpa bara bland dem
 - **Sökområde:** hela stadsdelen Västra Hamnen som standard (en radie missar
   Bo01 i ena änden), eller fritt avstånd från din position. Stadsdelsläget

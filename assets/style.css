@@ -610,3 +610,6 @@ a.btn { display: inline-block; text-decoration: none; }
 :root:not([data-theme="light"]) .tag.rating-high {
   background: #35291078; color: #e5b95c; border-color: #4a3a1a;
 }
+
+/* Betyg i duellkorten */
+.duel-card .tag.rating { margin-bottom: 8px; display: inline-block; }
