@@ -427,7 +427,7 @@ main {
 /* ---------- Beslutsknappar ---------- */
 .decide-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 10px;
   margin-top: 16px;
 }
@@ -582,37 +582,6 @@ main {
 .menu-box h3 { margin: 0; font-size: 15px; font-weight: 650; }
 .menu-box .modal-text { margin: 0; }
 .menu-box .btn { text-decoration: none; }
-
-/* ---------- Röstning ---------- */
-.share-row { display: flex; gap: 8px; margin-bottom: 18px; }
-.share-row input {
-  flex: 1;
-  min-width: 0;
-  padding: 10px 12px;
-  font-size: 13px;
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-}
-
-.vote-list { display: flex; flex-direction: column; gap: 6px; }
-
-.vote-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 14.5px;
-  cursor: pointer;
-}
-.vote-row:hover { border-color: var(--accent); }
-.vote-row input { accent-color: var(--accent); width: 17px; height: 17px; }
-.vote-row .muted { font-size: 13px; }
 
 /* Länkar som ser ut som knappar */
 a.btn { display: inline-block; text-decoration: none; }

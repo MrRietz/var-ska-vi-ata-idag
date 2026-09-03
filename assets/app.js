@@ -50,7 +50,6 @@ const state = {
   meLayer: null,
   fetchToken: 0,
   tournament: null,
-  votes: null,     // {options:[id], picks:{}}
 };
 
 /* ---------- DOM ---------- */
@@ -70,7 +69,6 @@ const el = {
   noRepeat: $('#no-repeat'),
   roll: $('#roll-btn'),
   tourney: $('#tourney-btn'),
-  vote: $('#vote-btn'),
   winner: $('#winner'),
   list: $('#list'),
   count: $('#results-count'),
@@ -607,62 +605,6 @@ function duelCard(p, side) {
     </button>`;
 }
 
-/* Röstning: dela länk, alla bockar i, appen räknar. */
-function startVote() {
-  const pool = state.visible.slice(0, 8);
-  if (pool.length < 2) { status('Behöver minst två ställen att rösta på.'); return; }
-
-  const params = new URLSearchParams({
-    lat: state.center.lat.toFixed(5),
-    lon: state.center.lon.toFixed(5),
-    r: el.radius.value,
-    vote: pool.map((p) => p.id).join(','),
-  });
-  const url = `${location.origin}${location.pathname}?${params}`;
-
-  openModal(`
-    <p class="eyebrow">Rösta tillsammans</p>
-    <h2 class="modal-title">Skicka länken till gänget</h2>
-    <p class="modal-text">Alla öppnar länken, kryssar i vad de kan tänka sig, och du ser vad som vinner.
-      Rösterna sparas lokalt i varje webbläsare — ingen server, inget konto.</p>
-    <div class="share-row">
-      <input id="share-url" type="text" readonly value="${escapeHtml(url)}">
-      <button class="btn btn-primary" id="copy-url" type="button">Kopiera</button>
-    </div>
-    <div class="vote-list">
-      ${pool.map((p) => `
-        <label class="vote-row">
-          <input type="checkbox" data-vote="${escapeHtml(p.id)}">
-          <span>${escapeHtml(p.name)}</span>
-          <span class="muted">${escapeHtml(formatDistance(p.dist))}</span>
-        </label>`).join('')}
-    </div>
-    <button class="btn btn-primary modal-skip" id="tally" type="button">Räkna rösterna</button>
-  `);
-
-  $('#copy-url')?.addEventListener('click', async () => {
-    const input = $('#share-url');
-    try {
-      await navigator.clipboard.writeText(url);
-      status('Länk kopierad!');
-    } catch {
-      input.select();                       // klipp­bordet kan vara blockerat
-      status('Markerad — kopiera med Ctrl+C');
-    }
-  });
-
-  $('#tally')?.addEventListener('click', () => {
-    const picked = [...el.modalBody.querySelectorAll('[data-vote]:checked')]
-      .map((c) => state.places.find((p) => p.id === c.dataset.vote))
-      .filter(Boolean);
-    if (!picked.length) { status('Kryssa i minst ett ställe.'); return; }
-    const winner = picked[Math.floor(Math.random() * picked.length)];
-    closeModal();
-    rememberChoice(winner.id);
-    showWinner(winner, picked.length === 1 ? 'Enda valet' : 'Vald bland era röster');
-  });
-}
-
 /* ---------- Detaljvy med menylänkar ---------- */
 
 function showDetails(p) {
@@ -791,7 +733,6 @@ function bindEvents() {
 
   el.roll.addEventListener('click', roll);
   el.tourney.addEventListener('click', startTournament);
-  el.vote.addEventListener('click', startVote);
 
   el.form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -880,7 +821,7 @@ function readUrlParams() {
     el.radiusOut.textContent = `${r} m`;
   }
   if (Number.isFinite(lat) && Number.isFinite(lon)) {
-    return { lat, lon, label: 'Delad plats', vote: q.get('vote') };
+    return { lat, lon, label: 'Delad plats' };
   }
   return null;
 }
@@ -894,9 +835,7 @@ function init() {
   const shared = readUrlParams();
   if (shared) {
     setCenter(shared);
-    loadPlaces().then(() => {
-      if (shared.vote) setTimeout(startVote, 300);
-    });
+    loadPlaces();
   } else {
     setCenter(DEFAULT_CENTER);
     loadPlaces();

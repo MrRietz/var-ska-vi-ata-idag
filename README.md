@@ -8,10 +8,9 @@ på GitHub Pages.
 ## Vad den gör
 
 - **Hittar riktiga lunchställen** runt kontoret via OpenStreetMap (restauranger och snabbmat — inga kaféer)
-- **Fyra sätt att bestämma:**
+- **Tre sätt att bestämma:**
   - 🎲 **Slumpa** — ett ställe, direkt, klart
   - ⚔️ **Turnering** — två i taget, ni väljer, vinnaren går vidare (bra när gruppen är oense)
-  - 🗳️ **Rösta ihop** — dela en länk, alla kryssar i vad de kan tänka sig, appen räknar
   - ⭐ **Favoriter** — spara ställen ni gillar och slumpa bara bland dem
 - **Filter:** avstånd, kök, öppet nu, "inte nyss besökta" (kommer ihåg de senaste dagarna)
 - **Meny & info** per ställe — öppettider, telefon, menylänk, vägbeskrivning
