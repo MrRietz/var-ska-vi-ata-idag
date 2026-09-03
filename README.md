@@ -1,20 +1,21 @@
 # Var ska vi äta idag? 🍽️
 
 En liten webbapp som hjälper gänget att bestämma var ni ska äta lunch.
-Utgår från din position. Helt statisk,
+Öppnar direkt på Västra Hamnen — ingen inloggning, ingen positionsdialog. Helt statisk,
 inga konton, inga API-nycklar, ingen server — allt körs i webbläsaren och hostas gratis
 på GitHub Pages.
 
 ## Vad den gör
 
-- **Hittar riktiga lunchställen** runt dig via OpenStreetMap — inga kaféer, och
+- **Hittar riktiga lunchställen** via OpenStreetMap — inga kaféer, och
   snabbmatskedjorna (McDonald's, Subway, Max m.fl.) är bortfiltrerade
 - **Tre sätt att bestämma:**
   - 🎲 **Slumpa** — ett ställe, direkt, klart
   - ⚔️ **Turnering** — två i taget, ni väljer, vinnaren går vidare (bra när gruppen är oense)
   - ⭐ **Favoriter** — spara ställen ni gillar och slumpa bara bland dem
 - **Sökområde:** hela stadsdelen Västra Hamnen som standard (en radie missar
-  Bo01 i ena änden), eller fritt avstånd från din position
+  Bo01 i ena änden), eller fritt avstånd från din position. Stadsdelsläget
+  behöver ingen position — tryck 📍 om du vill ha avstånden räknade från dig
 - **Filter:** kök, öppet nu, "inte nyss besökta" (kommer ihåg de senaste dagarna)
 - **Google-betyg** där vi slagit upp dem (OSM lagrar inte betyg — listan i
   `RATINGS` fylls på för hand, se nedan)

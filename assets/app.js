@@ -17,6 +17,10 @@ const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 // kartan behöver bara något att rita medan positionen efterfrågas.
 const INITIAL_VIEW = { lat: 55.6050, lon: 13.0038, zoom: 13 };
 
+// Stadsdelen hämtas utan att vi vet var användaren står — avstånden räknas
+// då från Västra Hamnens mitt tills någon trycker på "Min position".
+const SUBURB_CENTER = { lat: 55.6132, lon: 12.9843, label: 'Västra Hamnen' };
+
 const STORE = {
   favs: 'vsvai:favs',
   recent: 'vsvai:recent',
@@ -1025,9 +1029,18 @@ function useGeolocation({ atStartup = false } = {}) {
   status('Hämtar din position…', true);
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      setCenter({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'Här är du' });
+      const me = { lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'Här är du' };
+      setCenter(me);
       el.place.value = '';
-      loadPlaces();
+      // I stadsdelsläget har vi redan rätt ställen — bara avstånden är
+      // räknade från stadsdelens mitt, så de räknas om utan nytt anrop.
+      if (el.area.value !== 'radius' && state.places.length) {
+        for (const p of state.places) p.dist = distanceM(me, { lat: p.lat, lon: p.lon });
+        applyFilters();
+        status('Avstånd räknas nu från din position');
+      } else {
+        loadPlaces();
+      }
     },
     () => fallback('Kunde inte hämta position — sök på ort istället.'),
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
@@ -1060,7 +1073,10 @@ function init() {
     setCenter(shared);
     loadPlaces();
   } else {
-    useGeolocation({ atStartup: true });
+    // Stadsdelsläget behöver ingen position, så vi visar listan direkt
+    // istället för att möta besökaren med en behörighetsdialog.
+    setCenter({ ...SUBURB_CENTER });
+    loadPlaces();
   }
 }
 
