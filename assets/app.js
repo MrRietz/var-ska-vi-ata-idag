@@ -89,6 +89,20 @@ const RATINGS = {
   'woso':                    { r: 4.0, n: 11,   at: '2026-09' },
   'restaurang niagara':      { r: 4.1, n: 128,  at: '2026-09' },
   'grönt o’ gott':           { r: 4.3, n: 75,   at: '2026-09' },
+  'p2':                      { r: 4.1, n: 276,  at: '2026-09' },
+  'doc piazza':              { r: 4.3, n: 296,  at: '2026-09' },
+  'ubåtshallen':             { r: 4.4, n: 97,   at: '2026-09' },
+  'dockside burgers':        { r: 4.4, n: 716,  at: '2026-09' },
+  'la fonderie':             { r: 4.5, n: 206,  at: '2026-09' },
+  'bistro tout':             { r: 4.5, n: 23,   at: '2026-09' },
+  'frankful':                { r: 4.7, n: 10,   at: '2026-09' },  // heter Vårt Kök nu
+  'vårt kök':                { r: 4.7, n: 10,   at: '2026-09' },
+};
+
+// Ställen som bytt namn sedan OSM senast uppdaterades. Visas med det
+// namn folk känner igen, med det gamla i parentes.
+const RENAMED = {
+  'frankful': 'Vårt Kök (f.d. Frankful)',
 };
 
 // OSM-namnen har ibland suffix ("Thap Thim Västra Hamnen") eller
@@ -114,6 +128,7 @@ const CLOSED_NAMES = new Set([
   'eatery social',           // permanent stängd; låg dessutom vid Malmö Live
   'mh matsalar - orkanen',   // permanent stängd enligt Google
   'vindstilla',              // flyttat från Citadellsvägen, ej öppen för allmänheten
+  'la soupe',                // permanent stängd (Isbergs gata 14)
 ]);
 
 // Ställen som saknas i OSM men finns på riktigt. Lägg till här tills
@@ -362,6 +377,7 @@ function normalize(elements, center) {
     if (isBlockedChain(t, name)) continue;     // snabbmatskedjor
 
     const osmId = `${e.type}/${e.id}`;
+    const renamed = RENAMED[name.trim().toLowerCase()];
     if (CLOSED.has(osmId)) continue;           // nedlagda
     if (CLOSED_NAMES.has(name.trim().toLowerCase().split(',')[0].trim())) continue;
 
@@ -378,7 +394,7 @@ function normalize(elements, center) {
 
     out.push({
       id: osmId,
-      name,
+      name: renamed || name,
       lat, lon,
       amenity: t.amenity,
       cuisines,
