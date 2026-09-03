@@ -1,13 +1,13 @@
 # Var ska vi äta idag? 🍽️
 
-En liten webbapp som hjälper gänget på CGI i Västra Hamnen att bestämma var ni ska äta lunch.
-Startar på kontoret, men fungerar var som helst. Helt statisk,
+En liten webbapp som hjälper gänget att bestämma var ni ska äta lunch.
+Utgår från din position. Helt statisk,
 inga konton, inga API-nycklar, ingen server — allt körs i webbläsaren och hostas gratis
 på GitHub Pages.
 
 ## Vad den gör
 
-- **Hittar riktiga lunchställen** runt kontoret via OpenStreetMap (restauranger och snabbmat — inga kaféer)
+- **Hittar riktiga lunchställen** runt dig via OpenStreetMap (restauranger och snabbmat — inga kaféer)
 - **Tre sätt att bestämma:**
   - 🎲 **Slumpa** — ett ställe, direkt, klart
   - ⚔️ **Turnering** — två i taget, ni väljer, vinnaren går vidare (bra när gruppen är oense)

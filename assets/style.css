@@ -590,3 +590,13 @@ a.btn { display: inline-block; text-decoration: none; }
 [hidden] { display: none !important; }
 
 .menu-links { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Klickbar meny-/hemsidelänk i listkorten */
+.tag-link {
+  text-decoration: none;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transition: background .15s;
+}
+.tag-link:hover { background: var(--accent); color: #fff; }

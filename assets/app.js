@@ -13,8 +13,9 @@ const OVERPASS_ENDPOINTS = [
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
-// Hemmaplan: CGI-kontoret, Västra Hamnen i Malmö.
-const DEFAULT_CENTER = { lat: 55.61335, lon: 12.97873, label: 'CGI, Västra Hamnen' };
+// Startvy innan vi vet var användaren är. Ingen data hämtas här —
+// kartan behöver bara något att rita medan positionen efterfrågas.
+const INITIAL_VIEW = { lat: 55.6050, lon: 13.0038, zoom: 13 };
 
 const STORE = {
   favs: 'vsvai:favs',
@@ -60,7 +61,6 @@ const el = {
   form: $('#search-form'),
   place: $('#place-input'),
   locate: $('#locate-btn'),
-  office: $('#office-btn'),
   radius: $('#radius'),
   radiusOut: $('#radius-out'),
   cuisine: $('#cuisine'),
@@ -387,7 +387,16 @@ function badges(p) {
   if (p.vegan === 'yes' || p.vegan === 'only') out.push('<span class="tag">Veganskt</span>');
   else if (p.vegetarian === 'yes' || p.vegetarian === 'only') out.push('<span class="tag">Vegetariskt</span>');
   if (p.outdoor) out.push('<span class="tag">Uteservering</span>');
-  if (p.menu) out.push('<span class="tag">Meny ↗</span>');
+
+  // Klickbar genväg rakt till menyn/hemsidan — data-stop hindrar att
+  // kortets egen klickhanterare öppnar detaljvyn ovanpå.
+  if (p.menu) {
+    out.push(`<a class="tag tag-link" href="${escapeHtml(p.menu)}" target="_blank"
+      rel="noopener" data-stop title="Öppna menyn">Meny ↗</a>`);
+  } else if (p.website) {
+    out.push(`<a class="tag tag-link" href="${escapeHtml(p.website)}" target="_blank"
+      rel="noopener" data-stop title="Öppna hemsidan">Hemsida ↗</a>`);
+  }
   return out.join('');
 }
 
@@ -456,11 +465,10 @@ function menuSearchUrl(p) {
   return 'https://duckduckgo.com/?q=' + encodeURIComponent(`${p.name} ${p.street || ''} lunchmeny dagens lunch`.trim());
 }
 
-// Lunchsidan listar dagens lunch för många Malmö-krogar — bra komplement
-// när OSM varken har meny eller hemsida.
-function lunchsidanUrl(p) {
-  return 'https://www.lunchsidan.se/sok?q=' + encodeURIComponent(p.name);
-}
+// Lunchsidan har dagens lunch per område (t.ex. /plats/masttorget/12035118).
+// Områdes-id:t går inte att härleda från OSM-datan, så vi länkar till
+// startsidan där man väljer ort en gång.
+const LUNCHSIDAN_URL = 'https://www.lunchsidan.se/';
 
 /* ---------- Val: vinnare, slump, turnering, röstning ---------- */
 
@@ -640,7 +648,7 @@ function showDetails(p) {
              <a class="btn btn-primary" href="${escapeHtml(p.website)}" target="_blank" rel="noopener">Öppna hemsidan ↗</a>`
           : `<p class="modal-text">Varken meny eller hemsida finns registrerad i OpenStreetMap.</p>`}
       <div class="menu-links">
-        <a class="btn" href="${escapeHtml(lunchsidanUrl(p))}" target="_blank" rel="noopener">Dagens lunch (Lunchsidan) ↗</a>
+        <a class="btn" href="${LUNCHSIDAN_URL}" target="_blank" rel="noopener">Lunchsidan ↗</a>
         <a class="btn" href="${escapeHtml(menuSearchUrl(p))}" target="_blank" rel="noopener">Sök på webben ↗</a>
       </div>
     </div>
@@ -675,7 +683,7 @@ function closeModal() {
 
 function initMap() {
   state.map = L.map('map', { zoomControl: true, scrollWheelZoom: true })
-    .setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lon], 15);
+    .setView([INITIAL_VIEW.lat, INITIAL_VIEW.lon], INITIAL_VIEW.zoom);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -749,13 +757,7 @@ function bindEvents() {
     }
   });
 
-  el.locate.addEventListener('click', useGeolocation);
-
-  el.office.addEventListener('click', () => {
-    el.place.value = '';
-    setCenter({ ...DEFAULT_CENTER });
-    loadPlaces();
-  });
+  el.locate.addEventListener('click', () => useGeolocation());
 
   // Klick i listan: favorit eller markera.
   el.list.addEventListener('click', (e) => {
@@ -770,6 +772,8 @@ function bindEvents() {
       applyFilters();
       return;
     }
+    if (e.target.closest('[data-stop]')) return;   // länk i kortet
+
     const card = e.target.closest('.card');
     if (card?.dataset.id) {
       const p = state.places.find((x) => x.id === card.dataset.id);
@@ -797,8 +801,24 @@ function bindEvents() {
   });
 }
 
-function useGeolocation() {
-  if (!navigator.geolocation) { status('Din webbläsare stödjer inte platstjänster.'); return; }
+// atStartup: nekas positionen vid uppstart har vi inget att visa, så vi
+// ber om en plats. Klickar man själv på knappen räcker ett statusmeddelande.
+function useGeolocation({ atStartup = false } = {}) {
+  const fallback = (msg) => {
+    status(msg, atStartup);
+    if (atStartup) {
+      el.count.textContent = 'Var är du?';
+      el.empty.hidden = false;
+      el.empty.textContent = 'Sök på ort eller adress ovan, eller tryck 📍 Min position.';
+      el.place.focus();
+    }
+  };
+
+  if (!navigator.geolocation) {
+    fallback('Din webbläsare stödjer inte platstjänster.');
+    return;
+  }
+
   status('Hämtar din position…', true);
   navigator.geolocation.getCurrentPosition(
     (pos) => {
@@ -806,7 +826,7 @@ function useGeolocation() {
       el.place.value = '';
       loadPlaces();
     },
-    () => status('Kunde inte hämta position — sök på ort istället.'),
+    () => fallback('Kunde inte hämta position — sök på ort istället.'),
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
   );
 }
@@ -837,8 +857,7 @@ function init() {
     setCenter(shared);
     loadPlaces();
   } else {
-    setCenter(DEFAULT_CENTER);
-    loadPlaces();
+    useGeolocation({ atStartup: true });
   }
 }
 
