@@ -80,6 +80,7 @@ const RATINGS_BY_NAME = {
   'aster': { r: 4.3, n: 395, at: '2026-09' },
   'sakura sushi': { r: 4.1, n: 381, at: '2026-09' },
   'västra hamnens pizzeria': { r: 4.7, n: 1594, at: '2026-09' },
+  'prince thai': { r: 3.8, n: 345, at: '2026-09' },
 };
 
 function ratingFor(osmId, name) {
@@ -90,8 +91,24 @@ function ratingFor(osmId, name) {
 // skicka någon till en nedlagd krog på lunchen.
 const CLOSED = new Set([
   'node/772486928',    // Torso Twisted — stängde 2011, lokalen är nu The Torso
-  'node/2718559019',   // Zen Thai — permanent stängd
+  'node/2718559019',   // Zen Thai — nedlagd, i lokalen ligger nu Prince Thai
+  'node/3815558172',   // Akvariet
 ]);
+
+// Ställen som saknas i OSM men finns på riktigt. Lägg till här tills
+// någon hunnit kartlägga dem — bidra gärna in dem i OSM också.
+const EXTRA_PLACES = [
+  {
+    id: 'manual/prince-thai',
+    name: 'Prince Thai',
+    lat: 55.61395, lon: 12.98060,     // Dockplatsen 16
+    amenity: 'restaurant',
+    cuisines: ['thai'],
+    street: 'Dockgatan 16',
+    website: 'https://www.princethai.nu/',
+    openingHours: '',
+  },
+];
 
 function isBlockedChain(tags, name) {
   const hay = `${name} ${tags.brand || ''} ${tags.operator || ''}`.toLowerCase();
@@ -360,6 +377,18 @@ function normalize(elements, center) {
   return out;
 }
 
+// Bygger samma form som normalize() ger, så resten av appen inte behöver
+// veta att de kommer från en annan källa.
+function extraPlaces(center) {
+  return EXTRA_PLACES.map((p) => ({
+    menu: '', phone: '', takeaway: undefined, outdoor: false,
+    vegetarian: undefined, vegan: undefined, wheelchair: undefined,
+    ...p,
+    rating: ratingFor(p.id, p.name),
+    dist: distanceM(center, { lat: p.lat, lon: p.lon }),
+  }));
+}
+
 async function loadPlaces() {
   const token = ++state.fetchToken;
   const radius = +el.radius.value;
@@ -376,7 +405,8 @@ async function loadPlaces() {
     const data = await overpass(query);
     if (token !== state.fetchToken) return;    // ett nyare anrop har hunnit före
 
-    state.places = normalize(data.elements || [], state.center);
+    state.places = normalize(data.elements || [], state.center)
+      .concat(extraPlaces(state.center));
     populateCuisines();
     applyFilters();
     status(state.places.length
