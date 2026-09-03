@@ -16,8 +16,21 @@ på GitHub Pages.
 - **Sökområde:** hela stadsdelen Västra Hamnen som standard (en radie missar
   Bo01 i ena änden), eller fritt avstånd från din position
 - **Filter:** kök, öppet nu, "inte nyss besökta" (kommer ihåg de senaste dagarna)
+- **Google-betyg** där vi slagit upp dem (OSM lagrar inte betyg — listan i
+  `RATINGS` fylls på för hand, se nedan)
 - **Meny & info** per ställe — öppettider, telefon, menylänk, vägbeskrivning
 - Mörkt/ljust tema, fungerar på mobil
+
+## Om betygen
+
+OpenStreetMap lagrar medvetet inga betyg, och Google Places API kräver
+nyckel, fakturering och en server — vilket sidan inte har. Betygen är därför
+uppslagna för hand och ligger i `RATINGS` / `RATINGS_BY_NAME` i
+[assets/app.js](assets/app.js), med datum för när de kontrollerades.
+
+Ställen utan betyg visar ingen stjärna alls — hellre tomt än gissat. Vill du
+fylla på: slå upp stället, lägg till en rad med OSM-id eller namn, betyg,
+antal omdömen och dagens månad.
 
 ## Om menyerna
 

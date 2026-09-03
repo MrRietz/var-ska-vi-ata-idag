@@ -58,6 +58,34 @@ const EXTRA_WEBSITES = {
   'node/12200997100': 'https://www.tamnackthai.se/',    // Tamnack Thai
 };
 
+// Google-betyg, uppslagna för hand. OSM lagrar inte betyg (medvetet val
+// hos projektet) och Google Places kräver nyckel + server, så listan fylls
+// på manuellt. Nyckel = OSM-id. Saknas ett ställe visas inget betyg —
+// aldrig ett gissat. Kolla datumet innan ni litar på ett gammalt värde.
+const RATINGS = {
+  // id                    betyg  antal  kontrollerat
+  'node/4234162768':     { r: 3.8, n: 346, at: '2026-09' },  // Curry Republik
+  'node/1343176255':     { r: 4.5, n: 467, at: '2026-09' },  // Laziza Dockan
+  'node/5834378328':     { r: 3.9, n: null, at: '2026-09' }, // Thap Thim (Tripadvisor)
+};
+
+// Vissa matchas enklast på namn: OSM-noden byter id vid ombyggnad, och
+// kedjor med flera lägen delar namn men inte id.
+
+
+// Spill finns som flera noder; matchas på namn eftersom OSM-id:t varierar
+// mellan Dockan- och Hyllie-noden.
+const RATINGS_BY_NAME = {
+  'spill': { r: 4.4, n: 76, at: '2026-09' },
+  'aster': { r: 4.3, n: 395, at: '2026-09' },
+  'sakura sushi': { r: 4.1, n: 381, at: '2026-09' },
+  'västra hamnens pizzeria': { r: 4.7, n: 1594, at: '2026-09' },
+};
+
+function ratingFor(osmId, name) {
+  return RATINGS[osmId] || RATINGS_BY_NAME[name.trim().toLowerCase()] || null;
+}
+
 // Stängda enligt uppslag, men fortfarande kvar i OSM. Vi vill inte
 // skicka någon till en nedlagd krog på lunchen.
 const CLOSED = new Set([
@@ -325,6 +353,7 @@ function normalize(elements, center) {
       vegetarian: t['diet:vegetarian'],
       vegan: t['diet:vegan'],
       wheelchair: t.wheelchair,
+      rating: ratingFor(osmId, name),
       dist: distanceM(center, { lat, lon }),
     });
   }
@@ -434,8 +463,16 @@ function renderSkeleton() {
   ).join('');
 }
 
+function ratingBadge(rating) {
+  if (!rating) return '';
+  const cls = rating.r >= 4 ? ' rating-high' : rating.r < 3.5 ? ' rating-low' : '';
+  const count = rating.n ? ` (${rating.n})` : '';
+  return `<span class="tag rating${cls}" title="Google-betyg${count}, kontrollerat ${rating.at}">★ ${rating.r.toFixed(1).replace('.', ',')}</span>`;
+}
+
 function badges(p) {
   const out = [];
+  if (p.rating) out.push(ratingBadge(p.rating));
   const open = isOpenNow(p.openingHours);
   if (open === true) out.push('<span class="tag open">Öppet nu</span>');
   else if (open === false) out.push('<span class="tag closed">Stängt</span>');
@@ -680,6 +717,12 @@ function showDetails(p) {
 
   if (p.street) rows.push(['Adress', escapeHtml(p.street)]);
   rows.push(['Avstånd', escapeHtml(formatDistance(p.dist))]);
+  if (p.rating) {
+    rows.push(['Google-betyg',
+      `★ ${p.rating.r.toFixed(1).replace('.', ',')} av 5` +
+      (p.rating.n ? ` <span class="muted">(${p.rating.n} omdömen)</span>` : '') +
+      ` <span class="muted">· kontrollerat ${escapeHtml(p.rating.at)}</span>`]);
+  }
   if (p.cuisines.length) rows.push(['Kök', p.cuisines.map(cuisineLabel).map(escapeHtml).join(', ')]);
   if (p.openingHours) {
     rows.push(['Öppettider',

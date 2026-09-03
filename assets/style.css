@@ -600,3 +600,13 @@ a.btn { display: inline-block; text-decoration: none; }
   transition: background .15s;
 }
 .tag-link:hover { background: var(--accent); color: #fff; }
+
+/* Betygsbadge */
+.tag.rating { font-variant-numeric: tabular-nums; }
+.tag.rating-high { background: #fff6e0; color: #8a6100; border-color: #f0dca8; }
+.tag.rating-low { background: var(--surface-2); color: var(--muted); }
+
+:root[data-theme="dark"] .tag.rating-high,
+:root:not([data-theme="light"]) .tag.rating-high {
+  background: #35291078; color: #e5b95c; border-color: #4a3a1a;
+}
