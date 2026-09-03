@@ -97,6 +97,21 @@ const RATINGS = {
   'bistro tout':             { r: 4.5, n: 23,   at: '2026-09' },
   'frankful':                { r: 4.7, n: 10,   at: '2026-09' },  // heter Vårt Kök nu
   'vårt kök':                { r: 4.7, n: 10,   at: '2026-09' },
+  'sushi for you':           { r: 3.3, n: 389,  at: '2026-09' },
+  'benne pastabar':          { r: 4.2, n: 228,  at: '2026-09' },
+  'glasklart':               { r: 3.8, n: 536,  at: '2026-09' },
+  'miss wang':               { r: 4.4, n: 144,  at: '2026-09' },
+  'salad & sushi':           { r: 4.0, n: 221,  at: '2026-09' },
+  'dojo sushi':              { r: 4.7, n: 20,   at: '2026-09' },
+  'da zio':                  { r: 4.3, n: 48,   at: '2026-09' },
+  'välfärden':               { r: 4.4, n: 198,  at: '2026-09' },
+  'salads and smoothies':    { r: 3.6, n: 40,   at: '2026-09' },
+  'kasai in the sky':        { r: 3.7, n: 675,  at: '2026-09' },
+  'lokal 17 - pembert och company': { r: 4.0, n: 74, at: '2026-09' },
+  'aro deli':                { r: 4.6, n: 66,   at: '2026-09' },
+  'fisky business dockan':   { r: 4.5, n: 216,  at: '2026-09' },
+  // rbg bar & grill utelämnad: Googles notering har bara 3 omdömen och
+  // gästernas recensioner hamnar troligen på Radisson Blus egen sida.
 };
 
 // Ställen som bytt namn sedan OSM senast uppdaterades. Visas med det
@@ -514,9 +529,13 @@ function applyFilters() {
     return true;
   });
 
-  rows.sort(el.sort.value === 'name'
-    ? (a, b) => a.name.localeCompare(b.name, 'sv')
-    : (a, b) => a.dist - b.dist);
+  const sorters = {
+    name: (a, b) => a.name.localeCompare(b.name, 'sv'),
+    // Obetygsatta sist — de är inte dåliga, bara okända.
+    rating: (a, b) => (b.rating?.r ?? -1) - (a.rating?.r ?? -1) || a.dist - b.dist,
+    distance: (a, b) => a.dist - b.dist,
+  };
+  rows.sort(sorters[el.sort.value] || sorters.distance);
 
   state.visible = rows;
   renderList();
