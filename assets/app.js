@@ -58,33 +58,31 @@ const EXTRA_WEBSITES = {
   'node/12200997100': 'https://www.tamnackthai.se/',    // Tamnack Thai
 };
 
-// Google-betyg, uppslagna för hand. OSM lagrar inte betyg (medvetet val
-// hos projektet) och Google Places kräver nyckel + server, så listan fylls
-// på manuellt. Nyckel = OSM-id. Saknas ett ställe visas inget betyg —
-// aldrig ett gissat. Kolla datumet innan ni litar på ett gammalt värde.
+// Google-betyg, uppslagna för hand. OSM lagrar medvetet inga betyg och
+// Google Places kräver nyckel + server, så listan fylls på manuellt.
+// Nyckeln är restaurangens namn i gemener — OSM-id byts när en nod ritas
+// om, namnet är stabilare. Saknas ett ställe visas ingen stjärna alls;
+// aldrig ett gissat värde. `at` säger när betyget senast kontrollerades.
 const RATINGS = {
-  // id                    betyg  antal  kontrollerat
-  'node/4234162768':     { r: 3.8, n: 346, at: '2026-09' },  // Curry Republik
-  'node/1343176255':     { r: 4.5, n: 467, at: '2026-09' },  // Laziza Dockan
-  'node/5834378328':     { r: 3.9, n: null, at: '2026-09' }, // Thap Thim (Tripadvisor)
-};
-
-// Vissa matchas enklast på namn: OSM-noden byter id vid ombyggnad, och
-// kedjor med flera lägen delar namn men inte id.
-
-
-// Spill finns som flera noder; matchas på namn eftersom OSM-id:t varierar
-// mellan Dockan- och Hyllie-noden.
-const RATINGS_BY_NAME = {
-  'spill': { r: 4.4, n: 76, at: '2026-09' },
-  'aster': { r: 4.3, n: 395, at: '2026-09' },
-  'sakura sushi': { r: 4.1, n: 381, at: '2026-09' },
+  // namn                      betyg  omdömen  kontrollerat
+  'curry republik':          { r: 3.8, n: 346,  at: '2026-09' },
+  'laziza':                  { r: 4.5, n: 467,  at: '2026-09' },
+  'thap thim':               { r: 3.9, n: null, at: '2026-09' },
+  'spill':                   { r: 4.4, n: 76,   at: '2026-09' },
+  'aster':                   { r: 4.3, n: 395,  at: '2026-09' },
+  'sakura sushi':            { r: 4.1, n: 381,  at: '2026-09' },
   'västra hamnens pizzeria': { r: 4.7, n: 1594, at: '2026-09' },
-  'prince thai': { r: 3.8, n: 345, at: '2026-09' },
+  'prince thai':             { r: 3.8, n: 345,  at: '2026-09' },
 };
 
-function ratingFor(osmId, name) {
-  return RATINGS[osmId] || RATINGS_BY_NAME[name.trim().toLowerCase()] || null;
+// OSM-namnen har ibland suffix ("Thap Thim Västra Hamnen") eller
+// tillägg efter komma, så vi provar även en trimmad variant.
+function ratingFor(_osmId, name) {
+  const key = name.trim().toLowerCase();
+  if (RATINGS[key]) return RATINGS[key];
+  const short = key.split(',')[0].trim();
+  if (RATINGS[short]) return RATINGS[short];
+  return Object.entries(RATINGS).find(([k]) => short.startsWith(k))?.[1] || null;
 }
 
 // Stängda enligt uppslag, men fortfarande kvar i OSM. Vi vill inte

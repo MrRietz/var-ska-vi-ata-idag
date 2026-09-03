@@ -25,12 +25,18 @@ på GitHub Pages.
 
 OpenStreetMap lagrar medvetet inga betyg, och Google Places API kräver
 nyckel, fakturering och en server — vilket sidan inte har. Betygen är därför
-uppslagna för hand och ligger i `RATINGS` / `RATINGS_BY_NAME` i
-[assets/app.js](assets/app.js), med datum för när de kontrollerades.
+uppslagna för hand och ligger i `RATINGS` i [assets/app.js](assets/app.js),
+nycklade på restaurangens namn i gemener, med datum för kontrollen.
 
 Ställen utan betyg visar ingen stjärna alls — hellre tomt än gissat. Vill du
-fylla på: slå upp stället, lägg till en rad med OSM-id eller namn, betyg,
-antal omdömen och dagens månad.
+fylla på eller uppdatera ett gammalt värde: slå upp stället (restaurantguru.com
+listar Googles siffra separat i sin "Ratings of"-sektion) och lägg till en rad:
+
+```js
+'restaurangens namn': { r: 4.2, n: 310, at: '2026-09' },
+```
+
+Ta Googles siffra, inte sajtens egen — de skiljer sig ofta kraftigt.
 
 ## Om menyerna
 
