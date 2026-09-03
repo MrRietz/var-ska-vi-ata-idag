@@ -710,17 +710,21 @@ function rememberChoice(id) {
 }
 
 function roll() {
-  const pool = state.visible;
-  if (!pool.length) { status('Inget att slumpa bland — lätta på filtren.'); return; }
+  if (!state.visible.length) { status('Inget att slumpa bland — lätta på filtren.'); return; }
 
-  // Liten spinn-effekt: bläddra genom några innan vi landar.
+  // Aldrig samma ställe två gånger i rad. Med bara ett kvar efter filtren
+  // finns inget alternativ, och då får det bli samma igen.
+  const last = state.recent[0]?.id;
+  const fresh = state.visible.filter((p) => p.id !== last);
+  const pool = fresh.length ? fresh : state.visible;
+
   const winner = pool[Math.floor(Math.random() * pool.length)];
   let ticks = 0;
   const maxTicks = Math.min(12, pool.length * 2);
 
   el.roll.disabled = true;
   const spin = setInterval(() => {
-    const p = pool[Math.floor(Math.random() * pool.length)];
+    const p = state.visible[Math.floor(Math.random() * state.visible.length)];
     el.winner.hidden = false;
     el.winner.innerHTML = `<p class="eyebrow">Slumpar…</p><h2>${escapeHtml(p.name)}</h2><p class="meta">&nbsp;</p>`;
     if (++ticks >= maxTicks) {
