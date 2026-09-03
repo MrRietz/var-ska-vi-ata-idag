@@ -73,6 +73,22 @@ const RATINGS = {
   'sakura sushi':            { r: 4.1, n: 381,  at: '2026-09' },
   'västra hamnens pizzeria': { r: 4.7, n: 1594, at: '2026-09' },
   'prince thai':             { r: 3.8, n: 345,  at: '2026-09' },
+  'two forks mat & vin':     { r: 4.9, n: 273,  at: '2026-09' },
+  'porto gastrobar':         { r: 4.7, n: null, at: '2026-09' },
+  'kontrast ghee by the sea':{ r: 4.5, n: 1084, at: '2026-09' },
+  'tamnack thai':            { r: 4.2, n: null, at: '2026-09' },
+  'locali':                  { r: 4.5, n: 240,  at: '2026-09' },
+  'holy greens':             { r: 4.2, n: 60,   at: '2026-09' },
+  'papi':                    { r: 4.6, n: 585,  at: '2026-09' },
+  'maya cantina':            { r: 4.6, n: 111,  at: '2026-09' },
+  'poms':                    { r: 4.1, n: 167,  at: '2026-09' },
+  'ramen to bíiru':          { r: 4.4, n: 206,  at: '2026-09' },
+  'aqua sushi':              { r: 4.9, n: 376,  at: '2026-09' },
+  'falafel & burgers':       { r: 4.0, n: 216,  at: '2026-09' },
+  'påris':                   { r: 4.0, n: 60,   at: '2026-09' },
+  'woso':                    { r: 4.0, n: 11,   at: '2026-09' },
+  'restaurang niagara':      { r: 4.1, n: 128,  at: '2026-09' },
+  'grönt o’ gott':           { r: 4.3, n: 75,   at: '2026-09' },
 };
 
 // OSM-namnen har ibland suffix ("Thap Thim Västra Hamnen") eller
@@ -91,6 +107,13 @@ const CLOSED = new Set([
   'node/772486928',    // Torso Twisted — stängde 2011, lokalen är nu The Torso
   'node/2718559019',   // Zen Thai — nedlagd, i lokalen ligger nu Prince Thai
   'node/3815558172',   // Akvariet
+]);
+
+// Nedlagda som vi bara känner till på namn (OSM-id okänt eller instabilt).
+const CLOSED_NAMES = new Set([
+  'eatery social',           // permanent stängd; låg dessutom vid Malmö Live
+  'mh matsalar - orkanen',   // permanent stängd enligt Google
+  'vindstilla',              // flyttat från Citadellsvägen, ej öppen för allmänheten
 ]);
 
 // Ställen som saknas i OSM men finns på riktigt. Lägg till här tills
@@ -340,6 +363,7 @@ function normalize(elements, center) {
 
     const osmId = `${e.type}/${e.id}`;
     if (CLOSED.has(osmId)) continue;           // nedlagda
+    if (CLOSED_NAMES.has(name.trim().toLowerCase().split(',')[0].trim())) continue;
 
     const lat = e.lat ?? e.center?.lat;
     const lon = e.lon ?? e.center?.lon;
