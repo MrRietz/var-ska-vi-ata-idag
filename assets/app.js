@@ -982,9 +982,9 @@ function initChase(ghostPlaces) {
     pellets, score: 0, totalPellets: pellets.size,
     raf: 0, lastStep: 0,
     stepMs: 260,          // spelaren flyttar en ruta så ofta
-    ghostStepMs: 320,     // spöken lite långsammare → chans att fly
+    ghostStepMs: 260,     // spöken lika snabba men jagar inte perfekt
     lastGhostStep: 0,
-    grace: 1400,          // ms innan spökena börjar jaga
+    grace: 800,           // ms innan spökena börjar jaga
     startedAt: performance.now(),
     over: false,
     onKey: null, onPad: null,
@@ -1103,10 +1103,10 @@ function stepGhosts() {
     );
     if (!choices.length) continue;
 
-    // Jaga: 75% mot spelaren, annars slumpmässigt så det inte blir en
-    // perfekt lås som fångar en direkt.
+    // Jaga: oftast mot spelaren, annars slumpmässigt så det inte blir ett
+    // perfekt lås som fångar en direkt trots samma fart.
     let pick;
-    if (Math.random() < 0.75) {
+    if (Math.random() < 0.68) {
       pick = choices.reduce((best, cur) => {
         const score = (dir) => {
           const d = DIRS[dir[0]];
