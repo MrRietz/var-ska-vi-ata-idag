@@ -951,8 +951,9 @@ function initChase(ghostPlaces) {
   const ctx = canvas.getContext('2d');
   const tile = canvas.width / MAZE_W;
 
-  // Startruta för spelaren: mitten, en bit ner från spökena.
-  const player = { x: 7, y: 11, dir: null, want: null };
+  // Startruta för spelaren: mitten, en bit ner från spökena. `prog` är hur
+  // långt (0–1) man hunnit mot nästa ruta — rörelsen ritas mjukt däremellan.
+  const player = { x: 7, y: 11, dir: null, want: null, prog: 0 };
 
   // Spökena startar i mittkorridoren, utspridda så de inte krockar direkt.
   const spawns = [{ x: 5, y: 7 }, { x: 6, y: 7 }, { x: 8, y: 7 }, { x: 9, y: 7 }];
@@ -962,6 +963,7 @@ function initChase(ghostPlaces) {
     x: spawns[i % spawns.length].x,
     y: spawns[i % spawns.length].y,
     dir: null,
+    prog: 0,
   }));
 
   // Prickar på varje gång-ruta, utom där spelare och spöken står. De fyra
@@ -980,10 +982,11 @@ function initChase(ghostPlaces) {
   chase = {
     canvas, ctx, tile, player, ghosts,
     pellets, score: 0, totalPellets: pellets.size,
-    raf: 0, lastStep: 0,
-    stepMs: 340,          // spelaren flyttar en ruta så ofta — lugnt tempo
-    ghostStepMs: 380,     // spöken lite långsammare → man hinner smita undan
-    lastGhostStep: 0,
+    raf: 0, lastFrame: 0,
+    // Tid att korsa en ruta. Mjuk rörelse gör att lägre värden känns flytande
+    // istället för hackiga — nära arcade-tempo utan att bli ostyrbart.
+    playerTileMs: 220,    // ~4,5 rutor/s
+    ghostTileMs: 250,     // spöken en gnutta långsammare → man kan smita undan
     grace: 1200,          // ms innan spökena börjar jaga — hinn orientera dig
     startedAt: performance.now(),
     over: false,
@@ -1024,24 +1027,81 @@ const DIRS = {
 function chaseLoop(now) {
   if (!chase || chase.over) return;
   const c = chase;
+  const dt = c.lastFrame ? Math.min(now - c.lastFrame, 50) : 16;   // klamp mot flikbyten
+  c.lastFrame = now;
 
-  // Spelaren rör sig rutvis i takt med stepMs.
-  if (now - c.lastStep >= c.stepMs) {
-    c.lastStep = now;
-    stepPlayer();
-    eatPellet();
-    if (c.pellets.size === 0) { boardCleared(); return; }   // hela banan avklarad
-  }
+  // Rörelsen sker kontinuerligt: varje ruta korsas över playerTileMs/ghostTileMs,
+  // och logiken (svängar, äta, jaga, fångas) körs när en ruta är helt korsad.
+  advancePlayer(dt);
+  if (c.pellets.size === 0) { boardCleared(); return; }   // hela banan avklarad
 
-  // Spökena börjar först efter grace-perioden.
-  if (now - c.startedAt >= c.grace && now - c.lastGhostStep >= c.ghostStepMs) {
-    c.lastGhostStep = now;
-    stepGhosts();
-  }
+  const chasing = now - c.startedAt >= c.grace;
+  if (chasing) advanceGhosts(dt);
 
   if (checkCaught()) return;   // stänger själv om någon fångar
   drawChase();
   c.raf = requestAnimationFrame(chaseLoop);
+}
+
+// Flyttar spelaren mjukt. När prog når 1 låses den till nästa ruta och nästa
+// steg beslutas (sväng/vägg/prick), precis som ett rutvist steg förr.
+function advancePlayer(dt) {
+  const p = chase.player;
+
+  // Rakt-om-vändning får slå igenom direkt, även mitt i en ruta.
+  tryTurnPlayer();
+  if (!p.dir) return;   // står stilla tills en giltig riktning valts
+
+  p.prog += dt / chase.playerTileMs;
+  while (p.prog >= 1) {
+    // Klart med rutan man var på väg till: kliv in i den.
+    const d = DIRS[p.dir];
+    p.x += d.x; p.y += d.y;
+    p.prog -= 1;
+    eatPellet();
+
+    // Vid varje ruta: kan man svänga dit man vill? Annars fortsätt rakt.
+    tryTurnPlayer();
+    const nd = DIRS[p.dir];
+    if (isWall(p.x + nd.x, p.y + nd.y)) { p.prog = 0; break; }   // vägg rakt fram → stanna
+  }
+}
+
+function tryTurnPlayer() {
+  const p = chase.player;
+  if (!p.want) return;
+
+  // Rakt-om-vändning: tillåt direkt, även mitt i en ruta. Ankaret flyttas
+  // till rutan man var på väg mot så pixelläget bevaras (prog speglas).
+  const back = { up: 'down', down: 'up', left: 'right', right: 'left' }[p.dir];
+  if (p.dir && p.want === back && p.prog > 0.001) {
+    const d = DIRS[p.dir];
+    p.x += d.x; p.y += d.y;         // hoppa till målrutan …
+    p.prog = 1 - p.prog;           // … och spegla hur långt vi hunnit
+    p.dir = p.want; p.want = null;
+    return;
+  }
+
+  // Övriga svängar sker i rutcentrum (prog≈0) och bara om vägen är fri.
+  const d = DIRS[p.want];
+  if (p.prog < 0.001 && !isWall(p.x + d.x, p.y + d.y)) {
+    p.dir = p.want;
+    p.want = null;
+  }
+}
+
+function advanceGhosts(dt) {
+  for (const g of chase.ghosts) {
+    if (!g.dir) { pickGhostDir(g); if (!g.dir) continue; }
+    g.prog += dt / chase.ghostTileMs;
+    while (g.prog >= 1) {
+      const d = DIRS[g.dir];
+      g.x += d.x; g.y += d.y;
+      g.prog -= 1;
+      pickGhostDir(g);                 // välj nästa riktning i den nya rutan
+      if (!g.dir) { g.prog = 0; break; }
+    }
+  }
 }
 
 function eatPellet() {
@@ -1071,61 +1131,49 @@ function boardCleared() {
   showWinner(winner, 'Du klarade banan — fritt val!');
 }
 
-function stepPlayer() {
+// Väljer ett spökes nästa riktning från dess nuvarande ruta.
+function pickGhostDir(g) {
   const p = chase.player;
-  // Som i Pac-Man: den önskade riktningen ligger kvar tills den går att ta.
-  // Kan man svänga dit nu, gör det; annars glider man vidare åt samma håll.
-  if (p.want) {
-    const d = DIRS[p.want];
-    if (!isWall(p.x + d.x, p.y + d.y)) {
-      p.dir = p.want;
-      p.want = null;           // svängen är tagen
-    }
+  const opts = Object.entries(DIRS).filter(([dir]) => {
+    if (isWall(g.x + DIRS[dir].x, g.y + DIRS[dir].y)) return false;
+    // Undvik att direkt vända 180° i korridorer — ger mindre studsande.
+    const back = { up: 'down', down: 'up', left: 'right', right: 'left' }[g.dir];
+    return dir !== back;
+  });
+  const choices = opts.length ? opts : Object.entries(DIRS).filter(
+    ([dir]) => !isWall(g.x + DIRS[dir].x, g.y + DIRS[dir].y)
+  );
+  if (!choices.length) { g.dir = null; return; }
+
+  // Jaga: oftast mot spelaren, annars slumpmässigt så det inte blir ett
+  // perfekt lås som fångar en direkt.
+  let pick;
+  if (Math.random() < 0.60) {
+    const score = (dir) =>
+      Math.abs(g.x + DIRS[dir].x - p.x) + Math.abs(g.y + DIRS[dir].y - p.y);
+    pick = choices.reduce((best, cur) => (score(cur[0]) < score(best[0]) ? cur : best));
+  } else {
+    pick = choices[Math.floor(Math.random() * choices.length)];
   }
-  if (!p.dir) return;
-  const d = DIRS[p.dir];
-  // Vägg rakt fram → stå kvar men behåll riktningen, så man rullar vidare
-  // så fort gången öppnar sig (eller när man hunnit svänga).
-  if (!isWall(p.x + d.x, p.y + d.y)) { p.x += d.x; p.y += d.y; }
+  g.dir = pick[0];
 }
 
-function stepGhosts() {
-  const p = chase.player;
-  for (const g of chase.ghosts) {
-    const opts = Object.entries(DIRS).filter(([dir, d]) => {
-      if (isWall(g.x + d.x, g.y + d.y)) return false;
-      // Undvik att direkt vända 180° i korridorer — ger mindre studsande.
-      const back = { up: 'down', down: 'up', left: 'right', right: 'left' }[g.dir];
-      return dir !== back;
-    });
-    const choices = opts.length ? opts : Object.entries(DIRS).filter(
-      ([, d]) => !isWall(g.x + d.x, g.y + d.y)
-    );
-    if (!choices.length) continue;
-
-    // Jaga: oftast mot spelaren, annars slumpmässigt så det inte blir ett
-    // perfekt lås som fångar en direkt trots samma fart.
-    let pick;
-    if (Math.random() < 0.60) {
-      pick = choices.reduce((best, cur) => {
-        const score = (dir) => {
-          const d = DIRS[dir[0]];
-          return Math.abs(g.x + d.x - p.x) + Math.abs(g.y + d.y - p.y);
-        };
-        return score(cur) < score(best) ? cur : best;
-      });
-    } else {
-      pick = choices[Math.floor(Math.random() * choices.length)];
-    }
-    g.dir = pick[0];
-    g.x += DIRS[pick[0]].x;
-    g.y += DIRS[pick[0]].y;
-  }
+// Pixelposition (rutcentrum) med mjuk interpolation mot nästa ruta.
+function entityPixel(e) {
+  const t = chase.tile;
+  const d = e.dir ? DIRS[e.dir] : { x: 0, y: 0 };
+  const cx = (e.x + d.x * e.prog) * t + t / 2;
+  const cy = (e.y + d.y * e.prog) * t + t / 2;
+  return { cx, cy };
 }
 
 function checkCaught() {
-  const p = chase.player;
-  const hit = chase.ghosts.find((g) => g.x === p.x && g.y === p.y);
+  const pp = entityPixel(chase.player);
+  const hitDist = chase.tile * 0.6;   // överlapp i pixlar → fångad
+  const hit = chase.ghosts.find((g) => {
+    const gp = entityPixel(g);
+    return Math.hypot(gp.cx - pp.cx, gp.cy - pp.cy) < hitDist;
+  });
   if (!hit) return false;
   chase.over = true;
   const winner = hit.place;
@@ -1176,10 +1224,9 @@ function drawChase() {
   // Blinkande "säker zon"-känsla under grace-perioden.
   const inGrace = now - chase.startedAt < chase.grace;
 
-  // Spelaren (Pac-Man) — enkel gapande cirkel.
+  // Spelaren (Pac-Man) — mjukt interpolerad position, gapande cirkel.
   const p = chase.player;
-  const px = p.x * tile + tile / 2;
-  const py = p.y * tile + tile / 2;
+  const { cx: px, cy: py } = entityPixel(p);
   const r = tile * 0.42;
   const mouth = (Math.sin(now / 90) * 0.5 + 0.5) * 0.32 + 0.04;
   const facing = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[p.dir] ?? 0;
@@ -1190,9 +1237,10 @@ function drawChase() {
   ctx.closePath();
   ctx.fill();
 
-  // Spökena.
+  // Spökena — även de interpolerade.
   for (const g of chase.ghosts) {
-    drawGhost(ctx, g.x * tile + tile / 2, g.y * tile + tile / 2, tile * 0.42, g.color, inGrace);
+    const { cx, cy } = entityPixel(g);
+    drawGhost(ctx, cx, cy, tile * 0.42, g.color, inGrace);
   }
 }
 
