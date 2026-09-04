@@ -427,13 +427,17 @@ main {
 /* ---------- Beslutsknappar ---------- */
 .decide-row {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 10px;
   margin-top: 16px;
 }
 .decide-row .btn { margin-top: 0; }
 
-@media (max-width: 560px) {
+@media (max-width: 680px) {
+  .decide-row { grid-template-columns: 1fr 1fr; }
+  .decide-row .btn-roll { grid-column: 1 / -1; }
+}
+@media (max-width: 420px) {
   .decide-row { grid-template-columns: 1fr; }
 }
 
@@ -613,3 +617,96 @@ a.btn { display: inline-block; text-decoration: none; }
 
 /* Betyg i duellkorten */
 .duel-card .tag.rating { margin-bottom: 8px; display: inline-block; }
+
+/* ---------- Jaga mig-spelet ---------- */
+.chase-intro { margin: 0 0 14px; color: var(--muted); font-size: 14.5px; }
+
+.chase-ghosts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+.chase-ghosts li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 550;
+}
+.chase-ghosts .dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.06) inset;
+}
+
+.chase-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.chase-hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 440px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.chase-hud strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.chase-score strong { color: var(--gold); }
+
+.chase-canvas {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  background: #0b0b1a;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  touch-action: none;
+}
+
+.chase-hint { margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
+.chase-hint kbd {
+  font: inherit;
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* Touch-styrkors för mobil */
+.chase-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 46px);
+  grid-template-rows: repeat(3, 46px);
+  gap: 6px;
+  justify-content: center;
+}
+.chase-pad button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 18px;
+  color: var(--text);
+  cursor: pointer;
+}
+.chase-pad button:active { background: var(--accent); color: #fff; }
+.chase-pad .pad-up    { grid-area: 1 / 2; }
+.chase-pad .pad-left  { grid-area: 2 / 1; }
+.chase-pad .pad-right { grid-area: 2 / 3; }
+.chase-pad .pad-down  { grid-area: 3 / 2; }
+
+@media (hover: hover) and (pointer: fine) {
+  .chase-pad { display: none; }
+}

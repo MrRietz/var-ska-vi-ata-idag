@@ -21,6 +21,18 @@ const INITIAL_VIEW = { lat: 55.6050, lon: 13.0038, zoom: 13 };
 // då från Västra Hamnens mitt tills någon trycker på "Min position".
 const SUBURB_CENTER = { lat: 55.6132, lon: 12.9843, label: 'Västra Hamnen' };
 
+// CGI-kontoret i Göteborg (Kruthusgatan 17, Gullbergsvass). Runtomkring
+// ligger Nordstan, Centralstationen och Stampen där lunchen brukar ätas,
+// så området söks som en radie kring kontoret istället för en stadsdel.
+const GOTEBORG_OFFICE = { lat: 57.71194, lon: 11.98223, label: 'CGI Göteborg', radius: 1200 };
+
+// Förvalda sökområden med känd mittpunkt, så avstånd och kartvy kan räknas
+// innan användaren delat sin position. Nyckel = värdet i #area-menyn.
+const AREA_CENTERS = {
+  'suburb:3050114': { ...SUBURB_CENTER },
+  'office:goteborg': { lat: GOTEBORG_OFFICE.lat, lon: GOTEBORG_OFFICE.lon, label: GOTEBORG_OFFICE.label },
+};
+
 const STORE = {
   favs: 'vsvai:favs',
   recent: 'vsvai:recent',
@@ -156,10 +168,10 @@ const EXTRA_PLACES = [
   {
     id: 'manual/prince-thai',
     name: 'Prince Thai',
-    lat: 55.61395, lon: 12.98060,     // Dockplatsen 16
+    lat: 55.6143166, lon: 12.9891631, // Dockplatsen 16 (uppslaget i Nominatim)
     amenity: 'restaurant',
     cuisines: ['thai'],
-    street: 'Dockgatan 16',
+    street: 'Dockplatsen 16',
     website: 'https://www.princethai.nu/',
     openingHours: '',
   },
@@ -205,6 +217,7 @@ const el = {
   noRepeat: $('#no-repeat'),
   roll: $('#roll-btn'),
   tourney: $('#tourney-btn'),
+  chase: $('#chase-btn'),
   winner: $('#winner'),
   list: $('#list'),
   count: $('#results-count'),
@@ -458,7 +471,9 @@ async function loadPlaces() {
     const mode = el.area.value;
     const query = mode.startsWith('suburb:')
       ? buildAreaQuery(+mode.slice(7))
-      : buildRadiusQuery(state.center.lat, state.center.lon, radius);
+      : mode === 'office:goteborg'
+        ? buildRadiusQuery(GOTEBORG_OFFICE.lat, GOTEBORG_OFFICE.lon, GOTEBORG_OFFICE.radius)
+        : buildRadiusQuery(state.center.lat, state.center.lon, radius);
     const data = await overpass(query);
     if (token !== state.fetchToken) return;    // ett nyare anrop har hunnit före
 
@@ -849,6 +864,379 @@ function duelCard(p, side) {
     </button>`;
 }
 
+/* ---------- Jaga mig: Pac-Man-minispel ----------
+   Du flyr i en labyrint. De högst betygsatta ställena jagar dig som
+   spöken; det spöke som fångar dig blir dagens lunch. Ren canvas + rAF,
+   inga bibliotek. */
+
+const CHASE_GHOSTS = 4;
+
+// 15x15-labyrint. '#' = vägg, ' ' = gång. Symmetrisk och öppen nog att
+// spöken och spelare får plats att röra sig. Ramen är helvägg.
+const MAZE = [
+  '###############',
+  '#      #      #',
+  '# ### ### ### #',
+  '# #         # #',
+  '# # ### ### # #',
+  '#     # #     #',
+  '### # # # # ###',
+  '#   #     #   #',
+  '### # ### # ###',
+  '#     # #     #',
+  '# # ### ### # #',
+  '# #         # #',
+  '# ### ### ### #',
+  '#      #      #',
+  '###############',
+];
+const MAZE_W = MAZE[0].length;
+const MAZE_H = MAZE.length;
+
+// Distinkta spökfärger, klassiska Pac-Man-toner så de går att skilja åt.
+const GHOST_COLORS = ['#ff5b52', '#ff9ff2', '#00e0e0', '#ffae42'];
+
+let chase = null;   // aktivt spel, eller null
+
+function isWall(cx, cy) {
+  if (cx < 0 || cy < 0 || cx >= MAZE_W || cy >= MAZE_H) return true;
+  return MAZE[cy][cx] === '#';
+}
+
+function startChase() {
+  if (state.visible.length < 2) {
+    status('Behöver minst två ställen för att bli jagad.');
+    return;
+  }
+
+  // De populäraste blir spöken: högst betyg först, obetygsatta sist.
+  const ranked = state.visible.slice().sort(
+    (a, b) => (b.rating?.r ?? -1) - (a.rating?.r ?? -1) || a.dist - b.dist
+  );
+  const chosen = ranked.slice(0, Math.min(CHASE_GHOSTS, ranked.length));
+
+  openModal(`
+    <p class="eyebrow">Jaga mig</p>
+    <h2 class="modal-title">Spring undan spökena!</h2>
+    <p class="chase-intro">Ät prickarna och samla poäng — men det spöke som fångar
+      dig bestämmer var vi äter. Klarar du hela banan får du välja fritt. 😅</p>
+    <ul class="chase-ghosts">
+      ${chosen.map((p, i) => `
+        <li><span class="dot" style="background:${GHOST_COLORS[i]}"></span>
+          ${escapeHtml(p.name)}${p.rating ? ` ★ ${p.rating.r.toFixed(1).replace('.', ',')}` : ''}</li>
+      `).join('')}
+    </ul>
+    <div class="chase-stage">
+      <div class="chase-hud">
+        <span class="chase-score">Poäng: <strong id="chase-score-val">0</strong></span>
+        <span class="chase-left"><strong id="chase-pellets-val">0</strong> prickar kvar</span>
+      </div>
+      <canvas id="chase-canvas" class="chase-canvas" width="450" height="450"
+              aria-label="Jaga mig-spelplan"></canvas>
+      <p class="chase-hint">Rör dig med <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> eller <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></p>
+      <div class="chase-pad" aria-hidden="true">
+        <button class="pad-up" data-dir="up">▲</button>
+        <button class="pad-left" data-dir="left">◀</button>
+        <button class="pad-right" data-dir="right">▶</button>
+        <button class="pad-down" data-dir="down">▼</button>
+      </div>
+    </div>
+  `);
+
+  initChase(chosen);
+}
+
+function initChase(ghostPlaces) {
+  const canvas = el.modalBody.querySelector('#chase-canvas');
+  const ctx = canvas.getContext('2d');
+  const tile = canvas.width / MAZE_W;
+
+  // Startruta för spelaren: mitten, en bit ner från spökena.
+  const player = { x: 7, y: 11, dir: null, want: null };
+
+  // Spökena startar i mittkorridoren, utspridda så de inte krockar direkt.
+  const spawns = [{ x: 5, y: 7 }, { x: 6, y: 7 }, { x: 8, y: 7 }, { x: 9, y: 7 }];
+  const ghosts = ghostPlaces.map((place, i) => ({
+    place,
+    color: GHOST_COLORS[i],
+    x: spawns[i % spawns.length].x,
+    y: spawns[i % spawns.length].y,
+    dir: null,
+  }));
+
+  // Prickar på varje gång-ruta, utom där spelare och spöken står. De fyra
+  // hörnrummen får en fetare "kraftprick" värd mer.
+  const skip = new Set([`${player.x},${player.y}`, ...spawns.map((s) => `${s.x},${s.y}`)]);
+  const powerTiles = new Set(['1,1', `${MAZE_W - 2},1`, `1,${MAZE_H - 2}`, `${MAZE_W - 2},${MAZE_H - 2}`]);
+  const pellets = new Map();   // "x,y" -> 'dot' | 'power'
+  for (let y = 0; y < MAZE_H; y++) {
+    for (let x = 0; x < MAZE_W; x++) {
+      const key = `${x},${y}`;
+      if (isWall(x, y) || skip.has(key)) continue;
+      pellets.set(key, powerTiles.has(key) ? 'power' : 'dot');
+    }
+  }
+
+  chase = {
+    canvas, ctx, tile, player, ghosts,
+    pellets, score: 0, totalPellets: pellets.size,
+    raf: 0, lastStep: 0,
+    stepMs: 260,          // spelaren flyttar en ruta så ofta
+    ghostStepMs: 320,     // spöken lite långsammare → chans att fly
+    lastGhostStep: 0,
+    grace: 1400,          // ms innan spökena börjar jaga
+    startedAt: performance.now(),
+    over: false,
+    onKey: null, onPad: null,
+    scoreEl: el.modalBody.querySelector('#chase-score-val'),
+    leftEl: el.modalBody.querySelector('#chase-pellets-val'),
+  };
+  updateChaseHud();
+
+  // Tangentbord.
+  chase.onKey = (e) => {
+    const map = {
+      ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+      w: 'up', s: 'down', a: 'left', d: 'right',
+      W: 'up', S: 'down', A: 'left', D: 'right',
+    };
+    const dir = map[e.key];
+    if (dir) { e.preventDefault(); player.want = dir; }
+  };
+  document.addEventListener('keydown', chase.onKey);
+
+  // Pekstyrning.
+  chase.onPad = (e) => {
+    const btn = e.target.closest('[data-dir]');
+    if (btn) { e.preventDefault(); player.want = btn.dataset.dir; }
+  };
+  el.modalBody.querySelector('.chase-pad')?.addEventListener('click', chase.onPad);
+
+  drawChase();
+  chase.raf = requestAnimationFrame(chaseLoop);
+}
+
+const DIRS = {
+  up: { x: 0, y: -1 }, down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
+};
+
+function chaseLoop(now) {
+  if (!chase || chase.over) return;
+  const c = chase;
+
+  // Spelaren rör sig rutvis i takt med stepMs.
+  if (now - c.lastStep >= c.stepMs) {
+    c.lastStep = now;
+    stepPlayer();
+    eatPellet();
+    if (c.pellets.size === 0) { boardCleared(); return; }   // hela banan avklarad
+  }
+
+  // Spökena börjar först efter grace-perioden.
+  if (now - c.startedAt >= c.grace && now - c.lastGhostStep >= c.ghostStepMs) {
+    c.lastGhostStep = now;
+    stepGhosts();
+  }
+
+  if (checkCaught()) return;   // stänger själv om någon fångar
+  drawChase();
+  c.raf = requestAnimationFrame(chaseLoop);
+}
+
+function eatPellet() {
+  const c = chase;
+  const key = `${c.player.x},${c.player.y}`;
+  const kind = c.pellets.get(key);
+  if (!kind) return;
+  c.pellets.delete(key);
+  c.score += kind === 'power' ? 50 : 10;
+  updateChaseHud();
+}
+
+function updateChaseHud() {
+  if (chase.scoreEl) chase.scoreEl.textContent = chase.score;
+  if (chase.leftEl) chase.leftEl.textContent = chase.pellets.size;
+}
+
+// Klarade hela banan utan att åka fast — då får man välja fritt. Vi slumpar
+// bland alla synliga ställen (inte bara spökena) som belöning.
+function boardCleared() {
+  chase.over = true;
+  const pool = state.visible.length ? state.visible : chase.ghosts.map((g) => g.place);
+  const winner = pool[Math.floor(Math.random() * pool.length)];
+  stopChase();
+  closeModal();
+  rememberChoice(winner.id);
+  showWinner(winner, 'Du klarade banan — fritt val!');
+}
+
+function stepPlayer() {
+  const p = chase.player;
+  // Som i Pac-Man: den önskade riktningen ligger kvar tills den går att ta.
+  // Kan man svänga dit nu, gör det; annars glider man vidare åt samma håll.
+  if (p.want) {
+    const d = DIRS[p.want];
+    if (!isWall(p.x + d.x, p.y + d.y)) {
+      p.dir = p.want;
+      p.want = null;           // svängen är tagen
+    }
+  }
+  if (!p.dir) return;
+  const d = DIRS[p.dir];
+  // Vägg rakt fram → stå kvar men behåll riktningen, så man rullar vidare
+  // så fort gången öppnar sig (eller när man hunnit svänga).
+  if (!isWall(p.x + d.x, p.y + d.y)) { p.x += d.x; p.y += d.y; }
+}
+
+function stepGhosts() {
+  const p = chase.player;
+  for (const g of chase.ghosts) {
+    const opts = Object.entries(DIRS).filter(([dir, d]) => {
+      if (isWall(g.x + d.x, g.y + d.y)) return false;
+      // Undvik att direkt vända 180° i korridorer — ger mindre studsande.
+      const back = { up: 'down', down: 'up', left: 'right', right: 'left' }[g.dir];
+      return dir !== back;
+    });
+    const choices = opts.length ? opts : Object.entries(DIRS).filter(
+      ([, d]) => !isWall(g.x + d.x, g.y + d.y)
+    );
+    if (!choices.length) continue;
+
+    // Jaga: 75% mot spelaren, annars slumpmässigt så det inte blir en
+    // perfekt lås som fångar en direkt.
+    let pick;
+    if (Math.random() < 0.75) {
+      pick = choices.reduce((best, cur) => {
+        const score = (dir) => {
+          const d = DIRS[dir[0]];
+          return Math.abs(g.x + d.x - p.x) + Math.abs(g.y + d.y - p.y);
+        };
+        return score(cur) < score(best) ? cur : best;
+      });
+    } else {
+      pick = choices[Math.floor(Math.random() * choices.length)];
+    }
+    g.dir = pick[0];
+    g.x += DIRS[pick[0]].x;
+    g.y += DIRS[pick[0]].y;
+  }
+}
+
+function checkCaught() {
+  const p = chase.player;
+  const hit = chase.ghosts.find((g) => g.x === p.x && g.y === p.y);
+  if (!hit) return false;
+  chase.over = true;
+  const winner = hit.place;
+  stopChase();
+  closeModal();
+  rememberChoice(winner.id);
+  showWinner(winner, 'Spöket tog dig');
+  return true;
+}
+
+function drawChase() {
+  const { ctx, canvas, tile } = chase;
+  const now = performance.now();
+
+  ctx.fillStyle = '#0b0b1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Väggar.
+  ctx.fillStyle = '#2536b8';
+  for (let y = 0; y < MAZE_H; y++) {
+    for (let x = 0; x < MAZE_W; x++) {
+      if (MAZE[y][x] === '#') {
+        ctx.fillRect(x * tile + 1, y * tile + 1, tile - 2, tile - 2);
+      }
+    }
+  }
+
+  // Prickar att äta. Kraftprickar blinkar lite för att synas.
+  const powerOn = Math.floor(now / 250) % 2 === 0;
+  for (const [key, kind] of chase.pellets) {
+    const [gx, gy] = key.split(',').map(Number);
+    const cx = gx * tile + tile / 2;
+    const cy = gy * tile + tile / 2;
+    if (kind === 'power') {
+      if (!powerOn) continue;
+      ctx.fillStyle = '#ffd21e';
+      ctx.beginPath();
+      ctx.arc(cx, cy, tile * 0.22, 0, 2 * Math.PI);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#f6d9a0';
+      ctx.beginPath();
+      ctx.arc(cx, cy, tile * 0.09, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
+
+  // Blinkande "säker zon"-känsla under grace-perioden.
+  const inGrace = now - chase.startedAt < chase.grace;
+
+  // Spelaren (Pac-Man) — enkel gapande cirkel.
+  const p = chase.player;
+  const px = p.x * tile + tile / 2;
+  const py = p.y * tile + tile / 2;
+  const r = tile * 0.42;
+  const mouth = (Math.sin(now / 90) * 0.5 + 0.5) * 0.32 + 0.04;
+  const facing = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[p.dir] ?? 0;
+  ctx.fillStyle = inGrace ? '#ffe14d' : '#ffd21e';
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.arc(px, py, r, facing + mouth * Math.PI, facing + (2 - mouth) * Math.PI);
+  ctx.closePath();
+  ctx.fill();
+
+  // Spökena.
+  for (const g of chase.ghosts) {
+    drawGhost(ctx, g.x * tile + tile / 2, g.y * tile + tile / 2, tile * 0.42, g.color, inGrace);
+  }
+}
+
+// Klassisk spökform: rund topp, vågig fåll, två ögon.
+function drawGhost(ctx, cx, cy, r, color, dim) {
+  ctx.save();
+  ctx.globalAlpha = dim ? 0.55 : 1;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.1, r, Math.PI, 0);
+  const bottom = cy + r * 0.9;
+  ctx.lineTo(cx + r, bottom);
+  const feet = 4;
+  for (let i = 0; i < feet; i++) {
+    const x1 = cx + r - (2 * r) * ((i + 0.5) / feet);
+    const x2 = cx + r - (2 * r) * ((i + 1) / feet);
+    ctx.lineTo(x1, bottom - r * 0.28);
+    ctx.lineTo(x2, bottom);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Ögon.
+  ctx.fillStyle = '#fff';
+  const eo = r * 0.34;
+  ctx.beginPath();
+  ctx.arc(cx - eo, cy - r * 0.1, r * 0.26, 0, 2 * Math.PI);
+  ctx.arc(cx + eo, cy - r * 0.1, r * 0.26, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a40';
+  ctx.beginPath();
+  ctx.arc(cx - eo, cy - r * 0.05, r * 0.13, 0, 2 * Math.PI);
+  ctx.arc(cx + eo, cy - r * 0.05, r * 0.13, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.restore();
+}
+
+function stopChase() {
+  if (!chase) return;
+  cancelAnimationFrame(chase.raf);
+  document.removeEventListener('keydown', chase.onKey);
+  chase = null;
+}
+
 /* ---------- Detaljvy med menylänkar ---------- */
 
 function showDetails(p) {
@@ -918,6 +1306,7 @@ function closeModal() {
   el.modalBody.innerHTML = '';
   document.body.style.overflow = '';
   state.tournament = null;
+  stopChase();
   lastFocus?.focus?.();
 }
 
@@ -948,9 +1337,14 @@ function setCenter(center, { fly = true } = {}) {
     radius: 7, color: '#d1523f', weight: 3, fillColor: '#fff', fillOpacity: 1,
   }).bindPopup(center.label || 'Här är du').addTo(state.meLayer);
 
-  if (el.area.value === 'radius') {
+  // Rita sökcirkeln både i radieläget och kring Göteborgskontoret, så det
+  // syns hur stort område som täcks.
+  const circleRadius = el.area.value === 'radius' ? +el.radius.value
+    : el.area.value === 'office:goteborg' ? GOTEBORG_OFFICE.radius
+    : null;
+  if (circleRadius) {
     L.circle([center.lat, center.lon], {
-      radius: +el.radius.value, color: '#d1523f', weight: 1,
+      radius: circleRadius, color: '#d1523f', weight: 1,
       opacity: .35, fillOpacity: .05,
     }).addTo(state.meLayer);
   }
@@ -983,7 +1377,13 @@ function bindEvents() {
   el.area.addEventListener('change', () => {
     const byRadius = el.area.value === 'radius';
     el.radiusField.hidden = !byRadius;
-    if (state.center) {
+    // Ett förvalt område har en känd mittpunkt att flytta kartan till;
+    // "Avstånd från mig" behåller positionen vi redan har.
+    const preset = AREA_CENTERS[el.area.value];
+    if (preset) {
+      setCenter({ ...preset });
+      loadPlaces();
+    } else if (state.center) {
       setCenter(state.center, { fly: false });
       loadPlaces();
     }
@@ -997,6 +1397,7 @@ function bindEvents() {
 
   el.roll.addEventListener('click', roll);
   el.tourney.addEventListener('click', startTournament);
+  el.chase.addEventListener('click', startChase);
 
   el.form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1079,17 +1480,13 @@ function useGeolocation({ atStartup = false } = {}) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const me = { lat: pos.coords.latitude, lon: pos.coords.longitude, label: 'Här är du' };
+      // Har man delat sin position vill man se det som ligger nära — så
+      // sökområdet växlar till "Avstånd från mig" och hämtar runt en.
+      el.area.value = 'radius';
+      el.radiusField.hidden = false;
       setCenter(me);
       el.place.value = '';
-      // I stadsdelsläget har vi redan rätt ställen — bara avstånden är
-      // räknade från stadsdelens mitt, så de räknas om utan nytt anrop.
-      if (el.area.value !== 'radius' && state.places.length) {
-        for (const p of state.places) p.dist = distanceM(me, { lat: p.lat, lon: p.lon });
-        applyFilters();
-        status('Avstånd räknas nu från din position');
-      } else {
-        loadPlaces();
-      }
+      loadPlaces();
     },
     () => fallback('Kunde inte hämta position — sök på ort istället.'),
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
