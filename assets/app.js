@@ -1052,18 +1052,24 @@ function advancePlayer(dt) {
   tryTurnPlayer();
   if (!p.dir) return;   // står stilla tills en giltig riktning valts
 
+  // Står man i rutcentrum och nästa ruta är vägg: rör dig inte alls (annars
+  // skulle gubben glida in i väggen innan prog hunnit nå 1). Riktningen ligger
+  // kvar så man rullar vidare så fort man svängt eller gången öppnats.
+  const ahead = DIRS[p.dir];
+  if (p.prog < 0.001 && isWall(p.x + ahead.x, p.y + ahead.y)) { p.prog = 0; return; }
+
   p.prog += dt / chase.playerTileMs;
   while (p.prog >= 1) {
-    // Klart med rutan man var på väg till: kliv in i den.
+    // Kliv in i nästa ruta (redan verifierad som gång).
     const d = DIRS[p.dir];
     p.x += d.x; p.y += d.y;
     p.prog -= 1;
     eatPellet();
 
-    // Vid varje ruta: kan man svänga dit man vill? Annars fortsätt rakt.
+    // Vid rutcentrum: sväng om man vill; stanna om det bär mot vägg.
     tryTurnPlayer();
     const nd = DIRS[p.dir];
-    if (isWall(p.x + nd.x, p.y + nd.y)) { p.prog = 0; break; }   // vägg rakt fram → stanna
+    if (isWall(p.x + nd.x, p.y + nd.y)) { p.prog = 0; break; }
   }
 }
 
@@ -1072,13 +1078,17 @@ function tryTurnPlayer() {
   if (!p.want) return;
 
   // Rakt-om-vändning: tillåt direkt, även mitt i en ruta. Ankaret flyttas
-  // till rutan man var på väg mot så pixelläget bevaras (prog speglas).
+  // till rutan man var på väg mot så pixelläget bevaras (prog speglas). Bara
+  // om den rutan faktiskt är en gång — annars glider man ju mot en vägg och
+  // får svänga vid rutcentrum som vanligt (annars hamnar ankaret i väggen).
   const back = { up: 'down', down: 'up', left: 'right', right: 'left' }[p.dir];
   if (p.dir && p.want === back && p.prog > 0.001) {
     const d = DIRS[p.dir];
-    p.x += d.x; p.y += d.y;         // hoppa till målrutan …
-    p.prog = 1 - p.prog;           // … och spegla hur långt vi hunnit
-    p.dir = p.want; p.want = null;
+    if (!isWall(p.x + d.x, p.y + d.y)) {
+      p.x += d.x; p.y += d.y;        // hoppa till målrutan …
+      p.prog = 1 - p.prog;          // … och spegla hur långt vi hunnit
+      p.dir = p.want; p.want = null;
+    }
     return;
   }
 
