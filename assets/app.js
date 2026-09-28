@@ -130,6 +130,15 @@ const RATINGS = {
   // gästernas recensioner hamnar troligen på Radisson Blus egen sida.
 };
 
+// Ställen med få Google-omdömen besöks sällan och tas bort ur listan.
+// Antalet omdömen är det närmaste mått på besök vi har. Ställen med betyg
+// men okänt antal behålls; de helt obetygsatta sållas i loadPlaces().
+const MIN_REVIEWS = 50;
+
+function isRarelyVisited(rating) {
+  return rating?.n != null && rating.n < MIN_REVIEWS;
+}
+
 // Ställen som bytt namn sedan OSM senast uppdaterades. Visas med det
 // namn folk känner igen, med det gamla i parentes.
 const RENAMED = {
@@ -413,6 +422,9 @@ function normalize(elements, center) {
     if (CLOSED.has(osmId)) continue;           // nedlagda
     if (CLOSED_NAMES.has(name.trim().toLowerCase().split(',')[0].trim())) continue;
 
+    const rating = ratingFor(osmId, name);
+    if (isRarelyVisited(rating)) continue;     // få besökare
+
     const lat = e.lat ?? e.center?.lat;
     const lon = e.lon ?? e.center?.lon;
     if (lat == null || lon == null) continue;
@@ -440,7 +452,7 @@ function normalize(elements, center) {
       vegetarian: t['diet:vegetarian'],
       vegan: t['diet:vegan'],
       wheelchair: t.wheelchair,
-      rating: ratingFor(osmId, name),
+      rating,
       dist: distanceM(center, { lat, lon }),
     });
   }
@@ -450,7 +462,7 @@ function normalize(elements, center) {
 // Bygger samma form som normalize() ger, så resten av appen inte behöver
 // veta att de kommer från en annan källa.
 function extraPlaces(center) {
-  return EXTRA_PLACES.map((p) => ({
+  return EXTRA_PLACES.filter((p) => !isRarelyVisited(ratingFor(p.id, p.name))).map((p) => ({
     menu: '', phone: '', takeaway: undefined, outdoor: false,
     vegetarian: undefined, vegan: undefined, wheelchair: undefined,
     ...p,
@@ -477,8 +489,11 @@ async function loadPlaces() {
     const data = await overpass(query);
     if (token !== state.fetchToken) return;    // ett nyare anrop har hunnit före
 
-    state.places = normalize(data.elements || [], state.center)
+    const places = normalize(data.elements || [], state.center)
       .concat(extraPlaces(state.center));
+    // I stadsdelen är betygen uppslagna för hand, så ett ställe utan betyg
+    // där är ett som få besöker. Övriga områden saknar betyg helt och behålls.
+    state.places = mode.startsWith('suburb:') ? places.filter((p) => p.rating) : places;
     populateCuisines();
     applyFilters();
     status(state.places.length
@@ -1063,13 +1078,17 @@ function advancePlayer(dt) {
     // Kliv in i nästa ruta (redan verifierad som gång).
     const d = DIRS[p.dir];
     p.x += d.x; p.y += d.y;
-    p.prog -= 1;
+    const rest = p.prog - 1;
     eatPellet();
 
-    // Vid rutcentrum: sväng om man vill; stanna om det bär mot vägg.
+    // Vid rutcentrum: sväng om man vill; stanna om det bär mot vägg. prog
+    // nollas medan svängen prövas — resten efter klivet är sällan under
+    // tröskeln i tryTurnPlayer, och då missades svängar i korsningar.
+    p.prog = 0;
     tryTurnPlayer();
     const nd = DIRS[p.dir];
-    if (isWall(p.x + nd.x, p.y + nd.y)) { p.prog = 0; break; }
+    if (isWall(p.x + nd.x, p.y + nd.y)) break;
+    p.prog = rest;
   }
 }
 

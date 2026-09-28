@@ -30,7 +30,14 @@ nyckel, fakturering och en server — vilket sidan inte har. Betygen är därfö
 uppslagna för hand och ligger i `RATINGS` i [assets/app.js](assets/app.js),
 nycklade på restaurangens namn i gemener, med datum för kontrollen.
 
-Ställen utan betyg visar ingen stjärna alls — hellre tomt än gissat. Vill du
+Ställen utan betyg visar ingen stjärna alls — hellre tomt än gissat.
+
+Betygen används också för att sålla bort ställen som få besöker: under 50
+Google-omdömen (`MIN_REVIEWS`) tas stället bort, och i Västra Hamnen tas även
+ställen helt utan betyg bort. Göteborg och "Avstånd från mig" saknar uppslagna
+betyg och visar därför allt.
+
+Vill du
 fylla på eller uppdatera ett gammalt värde: slå upp stället (restaurantguru.com
 listar Googles siffra separat i sin "Ratings of"-sektion) och lägg till en rad:
 
