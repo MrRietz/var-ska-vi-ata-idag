@@ -37,7 +37,17 @@ const STORE = {
   favs: 'vsvai:favs',
   recent: 'vsvai:recent',
   theme: 'vsvai:theme',
+  osm: 'vsvai:osm:',   // + områdesnyckel, se loadPlaces()
 };
+
+// Overpass svarar oftast på några sekunder men kan hänga i minuter när
+// en spegel är överbelastad — då går vi vidare till nästa istället.
+const OVERPASS_TIMEOUT_MS = 12000;
+
+// Kartdatan för de förvalda områdena ändras sällan. Den sparas lokalt och
+// visas direkt vid nästa besök, och hämtas om i bakgrunden när den är äldre
+// än så här. Svarar ingen spegel står den sparade listan kvar.
+const OSM_CACHE_TTL_MS = 12 * 3600e3;
 
 const CUISINE_LABELS = {
   pizza: 'Pizza', italian: 'Italienskt', sushi: 'Sushi', japanese: 'Japanskt',
@@ -183,6 +193,16 @@ const EXTRA_PLACES = [
     street: 'Dockplatsen 16',
     website: 'https://www.princethai.nu/',
     openingHours: '',
+  },
+  {
+    id: 'manual/taste-by-nordrest',
+    name: 'Taste by Nordrest',
+    lat: 55.6079588, lon: 12.9816862, // WTC Malmö, Skeppsgatan 19 (WTC-noden i OSM)
+    amenity: 'restaurant',
+    cuisines: ['buffet', 'swedish'],
+    street: 'Skeppsgatan 19',
+    website: 'https://www.tastebynordrest.se/17/6/taste-malmo/',
+    openingHours: 'Mo-Fr 11:00-13:30',
   },
 ];
 
@@ -397,6 +417,7 @@ async function overpass(query) {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(query),
+        signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -474,13 +495,23 @@ function extraPlaces(center) {
 async function loadPlaces() {
   const token = ++state.fetchToken;
   const radius = +el.radius.value;
+  const mode = el.area.value;
 
-  el.roll.disabled = true;
-  status('Hämtar ställen i närheten…', true);
-  el.list.innerHTML = renderSkeleton();
+  // Bara de förvalda områdena sparas — "Avstånd från mig" flyttar sig.
+  const cacheKey = mode === 'radius' ? null : STORE.osm + mode;
+  const cached = cacheKey ? loadJSON(cacheKey, null) : null;
+
+  if (cached) {
+    showPlaces(cached.elements, mode);
+    el.roll.disabled = false;   // ett avbrutet äldre anrop kan ha låst knappen
+    if (Date.now() - cached.at < OSM_CACHE_TTL_MS) return;   // färsk nog
+  } else {
+    el.roll.disabled = true;
+    status('Hämtar ställen i närheten…', true);
+    el.list.innerHTML = renderSkeleton();
+  }
 
   try {
-    const mode = el.area.value;
     const query = mode.startsWith('suburb:')
       ? buildAreaQuery(+mode.slice(7))
       : mode === 'office:goteborg'
@@ -489,25 +520,40 @@ async function loadPlaces() {
     const data = await overpass(query);
     if (token !== state.fetchToken) return;    // ett nyare anrop har hunnit före
 
-    const places = normalize(data.elements || [], state.center)
-      .concat(extraPlaces(state.center));
-    // I stadsdelen är betygen uppslagna för hand, så ett ställe utan betyg
-    // där är ett som få besöker. Övriga områden saknar betyg helt och behålls.
-    state.places = mode.startsWith('suburb:') ? places.filter((p) => p.rating) : places;
-    populateCuisines();
-    applyFilters();
-    status(state.places.length
-      ? `${state.places.length} ställen hittade`
-      : 'Inga ställen hittades — prova större radie');
+    const elements = data.elements || [];
+    if (cacheKey) saveJSON(cacheKey, { at: Date.now(), elements });
+    showPlaces(elements, mode, { quiet: !!cached });
   } catch (err) {
     if (token !== state.fetchToken) return;
     console.error(err);
+    if (cached) return;                        // den sparade listan står kvar
     state.places = [];
     applyFilters();
     status('Kunde inte hämta data just nu. Overpass kan vara överbelastad — försök igen om en stund.');
   } finally {
     if (token === state.fetchToken) el.roll.disabled = false;
   }
+}
+
+// Gör Overpass-svaret (färskt eller sparat) till listan som visas.
+function showPlaces(elements, mode, { quiet = false } = {}) {
+  const reach = mode.startsWith('suburb:') ? 3000
+    : mode === 'office:goteborg' ? GOTEBORG_OFFICE.radius
+    : +el.radius.value;
+  const places = normalize(elements, state.center)
+    .concat(extraPlaces(state.center).filter((p) => p.dist <= reach));
+  // I stadsdelen är betygen uppslagna för hand, så ett ställe utan betyg
+  // där är ett som få besöker. Övriga områden saknar betyg helt och behålls,
+  // liksom ställen vi lagt in för hand.
+  state.places = mode.startsWith('suburb:')
+    ? places.filter((p) => p.rating || p.id.startsWith('manual/'))
+    : places;
+  populateCuisines();
+  applyFilters();
+  if (quiet) return;
+  status(state.places.length
+    ? `${state.places.length} ställen hittade`
+    : 'Inga ställen hittades — prova större radie');
 }
 
 async function geocode(q) {

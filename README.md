@@ -88,7 +88,9 @@ Sidan hamnar på `https://<användarnamn>.github.io/<repo>/`.
 | [Nominatim](https://nominatim.org/) | platssökning | gratis, ingen nyckel |
 | [Leaflet](https://leafletjs.com/) | kartkomponent | öppen källkod |
 
-Appen roterar mellan tre Overpass-speglar om någon är överbelastad. Vid tung
+Appen roterar mellan tre Overpass-speglar om någon är överbelastad (12 s per
+spegel). Listan för Västra Hamnen och Göteborg sparas i webbläsaren och visas
+direkt vid nästa besök; den hämtas om i bakgrunden när den är äldre än 12 timmar. Vid tung
 användning gäller respektive tjänsts [användarvillkor](https://operations.osmfoundation.org/policies/nominatim/).
 
 ## Filer
