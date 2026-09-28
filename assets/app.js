@@ -146,7 +146,14 @@ const RATINGS = {
 // men okänt antal behålls; de helt obetygsatta sållas i loadPlaces().
 const MIN_REVIEWS = 50;
 
-function isRarelyVisited(rating) {
+// Ställen gänget vill ha kvar trots få omdömen. Namn i gemener.
+const KEEP_NAMES = new Set([
+  'dojo sushi',
+  'woso',
+]);
+
+function isRarelyVisited(rating, name = '') {
+  if (KEEP_NAMES.has(name.trim().toLowerCase().split(',')[0].trim())) return false;
   return rating?.n != null && rating.n < MIN_REVIEWS;
 }
 
@@ -445,7 +452,7 @@ function normalize(elements, center) {
     if (CLOSED_NAMES.has(name.trim().toLowerCase().split(',')[0].trim())) continue;
 
     const rating = ratingFor(osmId, name);
-    if (isRarelyVisited(rating)) continue;     // få besökare
+    if (isRarelyVisited(rating, name)) continue;   // få besökare
 
     const lat = e.lat ?? e.center?.lat;
     const lon = e.lon ?? e.center?.lon;
@@ -484,7 +491,7 @@ function normalize(elements, center) {
 // Bygger samma form som normalize() ger, så resten av appen inte behöver
 // veta att de kommer från en annan källa.
 function extraPlaces(center) {
-  return EXTRA_PLACES.filter((p) => !isRarelyVisited(ratingFor(p.id, p.name))).map((p) => ({
+  return EXTRA_PLACES.filter((p) => !isRarelyVisited(ratingFor(p.id, p.name), p.name)).map((p) => ({
     menu: '', phone: '', takeaway: undefined, outdoor: false,
     vegetarian: undefined, vegan: undefined, wheelchair: undefined,
     ...p,
