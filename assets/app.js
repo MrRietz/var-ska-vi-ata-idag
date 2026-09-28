@@ -136,6 +136,7 @@ const RATINGS = {
   'lokal 17 - pembert och company': { r: 4.0, n: 74, at: '2026-09' },
   'aro deli':                { r: 4.6, n: 66,   at: '2026-09' },
   'fisky business dockan':   { r: 4.5, n: 216,  at: '2026-09' },
+  'hachiko':                 { r: 4.5, n: 103,  at: '2026-09' },  // Hachikō Sushi, Sundspromenaden 9
   // rbg bar & grill utelämnad: Googles notering har bara 3 omdömen och
   // gästernas recensioner hamnar troligen på Radisson Blus egen sida.
 };
